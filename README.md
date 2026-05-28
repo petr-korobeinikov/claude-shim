@@ -81,8 +81,11 @@ so a `~/.claude/claudectl-profile` is not picked up as a global default.
 
 When no project marker is found, the shim resolves the profile in this order:
 
-1. `~/.config/claudectl/default-profile` — a text file containing one profile name.
+1. `<config dir>/claudectl/default-profile` — a text file containing one profile name.
    Recommended way to set a global default.
+   The config dir is platform-specific:
+   `~/Library/Application Support/claudectl/` on macOS,
+   `${XDG_CONFIG_HOME:-~/.config}/claudectl/` on Linux.
 2. `~/.claude/` itself — used as the profile if it exists,
    for installs that pre-date claudectl.
 3. Otherwise the shim refuses to run rather than silently fall back to an arbitrary profile.
@@ -94,11 +97,12 @@ do it by hand
 ```sh
 # macOS
 mv ~/.claude "$HOME/Library/Application Support/claudectl/profiles/default"
+echo default > "$HOME/Library/Application Support/claudectl/default-profile"
+
 # Linux
 mv ~/.claude "${XDG_DATA_HOME:-$HOME/.local/share}/claudectl/profiles/default"
-
-mkdir -p ~/.config/claudectl
-echo default > ~/.config/claudectl/default-profile
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/claudectl"
+echo default > "${XDG_CONFIG_HOME:-$HOME/.config}/claudectl/default-profile"
 ```
 
 ## Development
