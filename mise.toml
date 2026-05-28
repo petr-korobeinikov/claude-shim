@@ -1,0 +1,7 @@
+[settings]
+disable_backends = ["ubi", "asdf"]
+lockfile = true
+
+[tools]
+rust = "1.95.0"
+"aqua:gittower/git-flow-next" = "1.1.0"

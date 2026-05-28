@@ -1,0 +1,13 @@
+[package]
+name = "claudectl"
+version = "0.1.0"
+edition = "2024"
+description = "Profile manager for Claude Code"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4.6.1", features = ["derive"] }
+directories = "6.0.0"
+
+[dev-dependencies]
+tempfile = "3.27.0"
