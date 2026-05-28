@@ -17,6 +17,15 @@ cargo build --release
 The binary lands at `./target/release/claudectl`.
 Substitute `<claudectl>` below with its absolute path on your machine.
 
+The same binary acts as the `claude` shim when invoked under that name.
+The shim symlink (`<data dir>/claudectl/shims/claude → <claudectl>`)
+is created automatically on every `claudectl` run —
+no manual install step,
+no separate binary to copy.
+Make sure the real `claude` (npm, brew, nvm, etc.) is reachable on `PATH` —
+the shim looks it up there,
+skipping its own directory.
+
 ## Shell integration (zsh)
 
 Installs a precmd hook that exports `CLAUDECTL_ACTIVE_PROFILE` on every prompt.

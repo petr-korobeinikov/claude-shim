@@ -41,7 +41,15 @@ pub fn current() -> ExitCode {
 }
 
 fn find_profile_name(start: &Path) -> Option<String> {
+    let home = BaseDirs::new().map(|b| b.home_dir().to_path_buf());
+    find_profile_name_bounded(start, home.as_deref())
+}
+
+pub(crate) fn find_profile_name_bounded(start: &Path, stop_at: Option<&Path>) -> Option<String> {
     for dir in start.ancestors() {
+        if matches!(stop_at, Some(s) if dir == s) {
+            break;
+        }
         let candidate = dir.join(".claude").join("claudectl-profile");
         if candidate.is_file()
             && let Ok(content) = std::fs::read_to_string(&candidate)
@@ -158,5 +166,19 @@ mod tests {
         let nested = dir.path().join("inner");
         write_profile(&nested, "nearest");
         assert_eq!(find_profile_name(&nested).as_deref(), Some("nearest"));
+    }
+
+    #[test]
+    fn find_profile_name_bounded_stops_before_bound() {
+        let dir = TempDir::new().unwrap();
+        write_profile(dir.path(), "outside-bound");
+        let nested = dir.path().join("inner");
+        fs::create_dir_all(&nested).unwrap();
+
+        assert!(find_profile_name_bounded(&nested, Some(dir.path())).is_none());
+        assert_eq!(
+            find_profile_name_bounded(&nested, None).as_deref(),
+            Some("outside-bound")
+        );
     }
 }
