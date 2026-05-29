@@ -28,13 +28,11 @@ struct ProjectMarker {
 }
 
 pub(crate) fn current() -> ExitCode {
-    let cwd = match env::current_dir() {
-        Ok(p) => p,
-        Err(_) => return ExitCode::SUCCESS,
+    let Ok(cwd) = env::current_dir() else {
+        return ExitCode::SUCCESS;
     };
-    let base = match BaseDirs::new() {
-        Some(b) => b,
-        None => return ExitCode::SUCCESS,
+    let Some(base) = BaseDirs::new() else {
+        return ExitCode::SUCCESS;
     };
 
     match resolve(&cwd, base.home_dir(), base.config_dir()) {

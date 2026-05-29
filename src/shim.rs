@@ -12,6 +12,7 @@ use directories::BaseDirs;
 
 use crate::profile::{self, Resolution};
 
+#[must_use]
 pub fn run() -> ExitCode {
     match try_run() {
         Ok(never) => match never {},
@@ -105,8 +106,7 @@ impl fmt::Display for ShimError {
                  Install Claude Code first.",
                 self_dir
                     .as_deref()
-                    .map(|p| p.display().to_string())
-                    .unwrap_or_else(|| "<unknown>".to_string()),
+                    .map_or_else(|| "<unknown>".to_string(), |p| p.display().to_string()),
             ),
             Self::NoProfileInScope {
                 cwd,
@@ -165,8 +165,7 @@ fn find_real_claude(path: &OsStr, self_dir: Option<&Path>) -> Result<PathBuf, Sh
 fn is_executable(p: &Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
     p.metadata()
-        .map(|m| m.is_file() && (m.permissions().mode() & 0o111) != 0)
-        .unwrap_or(false)
+        .is_ok_and(|m| m.is_file() && (m.permissions().mode() & 0o111) != 0)
 }
 
 pub(crate) fn ensure_shim() {

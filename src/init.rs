@@ -5,23 +5,23 @@ use directories::BaseDirs;
 pub(crate) fn zsh() -> String {
     let exe = env::current_exe()
         .ok()
-        .map(|p| p.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "claudectl".to_string());
+        .map_or_else(|| "claudectl".to_string(), |p| p.to_string_lossy().into_owned());
     ZSH_TEMPLATE
         .replace("__CLAUDECTL_BIN__", &shell_quote(&exe))
         .replace("__CLAUDECTL_SHIMS__", &shell_quote(&shims_dir()))
 }
 
 fn shims_dir() -> String {
-    BaseDirs::new()
-        .map(|b| {
+    BaseDirs::new().map_or_else(
+        || "$HOME/.local/share/claudectl/shims".to_string(),
+        |b| {
             b.data_dir()
                 .join("claudectl")
                 .join("shims")
                 .to_string_lossy()
                 .into_owned()
-        })
-        .unwrap_or_else(|| "$HOME/.local/share/claudectl/shims".to_string())
+        },
+    )
 }
 
 fn shell_quote(s: &str) -> String {
