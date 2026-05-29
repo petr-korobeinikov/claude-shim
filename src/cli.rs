@@ -2,13 +2,13 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(name = "claudectl", version, about = "Claude Code profile manager")]
-pub struct Cli {
+pub(crate) struct Cli {
     #[command(subcommand)]
-    pub command: Command,
+    pub(crate) command: Command,
 }
 
 #[derive(Subcommand)]
-pub enum Command {
+pub(crate) enum Command {
     /// Print integration snippet for the given target
     Init {
         #[arg(value_enum)]
@@ -19,7 +19,7 @@ pub enum Command {
 }
 
 #[derive(Copy, Clone, ValueEnum)]
-pub enum Target {
+pub(crate) enum Target {
     Zsh,
 }
 

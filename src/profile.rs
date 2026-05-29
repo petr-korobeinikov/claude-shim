@@ -27,7 +27,7 @@ struct ProjectMarker {
     path: PathBuf,
 }
 
-pub fn current() -> ExitCode {
+pub(crate) fn current() -> ExitCode {
     let cwd = match env::current_dir() {
         Ok(p) => p,
         Err(_) => return ExitCode::SUCCESS,

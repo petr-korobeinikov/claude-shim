@@ -2,7 +2,7 @@ use std::env;
 
 use directories::BaseDirs;
 
-pub fn zsh() -> String {
+pub(crate) fn zsh() -> String {
     let exe = env::current_exe()
         .ok()
         .map(|p| p.to_string_lossy().into_owned())
