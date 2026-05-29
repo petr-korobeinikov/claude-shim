@@ -1,5 +1,6 @@
 use std::env;
 use std::ffi::{OsStr, OsString};
+use std::fmt;
 use std::fs;
 use std::io;
 use std::os::unix::process::CommandExt;
@@ -46,7 +47,14 @@ pub fn run() -> ExitCode {
         Resolution::Profile(p) => {
             let dir = profile::profile_dir(base.data_dir(), &p.name);
             if !dir.is_dir() {
-                eprintln!("{}", fmt_profile_dir_missing(&p.name, &p.marker, &dir));
+                eprintln!(
+                    "{}",
+                    ShimError::ProfileDirMissing {
+                        name: p.name,
+                        marker: p.marker,
+                        expected: dir,
+                    }
+                );
                 return ExitCode::from(2);
             }
             cmd.env("CLAUDE_CONFIG_DIR", &dir);
@@ -56,7 +64,11 @@ pub fn run() -> ExitCode {
             let default_marker = base.config_dir().join("claudectl").join("default-profile");
             eprintln!(
                 "{}",
-                fmt_no_profile_in_scope(&cwd, base.home_dir(), &default_marker)
+                ShimError::NoProfileInScope {
+                    cwd,
+                    home: base.home_dir().to_path_buf(),
+                    default_marker,
+                }
             );
             return ExitCode::from(2);
         }
@@ -67,32 +79,56 @@ pub fn run() -> ExitCode {
     ExitCode::from(2)
 }
 
-fn fmt_no_profile_in_scope(cwd: &Path, home: &Path, default_marker: &Path) -> String {
-    format!(
-        "claudectl: refusing to run `claude` — no profile in scope.\n  \
-         searched .claude/claudectl-profile from {} up to {}\n  \
-         and {}\n\n\
-         Pick a profile explicitly to avoid leaking credentials across contexts:\n  \
-         echo <name> > .claude/claudectl-profile      # for this project\n  \
-         echo <name> > {}    # as your default",
-        cwd.display(),
-        home.display(),
-        default_marker.display(),
-        default_marker.display(),
-    )
+enum ShimError {
+    NoProfileInScope {
+        cwd: PathBuf,
+        home: PathBuf,
+        default_marker: PathBuf,
+    },
+    ProfileDirMissing {
+        name: String,
+        marker: PathBuf,
+        expected: PathBuf,
+    },
 }
 
-fn fmt_profile_dir_missing(name: &str, marker: &Path, expected: &Path) -> String {
-    format!(
-        "claudectl: refusing to run `claude` — profile '{name}' is configured but missing.\n  \
-         marker:   {}\n  \
-         expected: {}\n\n\
-         Create the profile or fix the marker:\n  \
-         mkdir -p {}",
-        marker.display(),
-        expected.display(),
-        expected.display(),
-    )
+impl fmt::Display for ShimError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoProfileInScope {
+                cwd,
+                home,
+                default_marker,
+            } => write!(
+                f,
+                "claudectl: refusing to run `claude` — no profile in scope.\n  \
+                 searched .claude/claudectl-profile from {} up to {}\n  \
+                 and {}\n\n\
+                 Pick a profile explicitly to avoid leaking credentials across contexts:\n  \
+                 echo <name> > .claude/claudectl-profile      # for this project\n  \
+                 echo <name> > {}    # as your default",
+                cwd.display(),
+                home.display(),
+                default_marker.display(),
+                default_marker.display(),
+            ),
+            Self::ProfileDirMissing {
+                name,
+                marker,
+                expected,
+            } => write!(
+                f,
+                "claudectl: refusing to run `claude` — profile '{name}' is configured but missing.\n  \
+                 marker:   {}\n  \
+                 expected: {}\n\n\
+                 Create the profile or fix the marker:\n  \
+                 mkdir -p {}",
+                marker.display(),
+                expected.display(),
+                expected.display(),
+            ),
+        }
+    }
 }
 
 pub(crate) fn find_real_claude(
@@ -166,12 +202,13 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
-    fn fmt_no_profile_in_scope_mentions_key_paths() {
-        let msg = fmt_no_profile_in_scope(
-            Path::new("/work/proj"),
-            Path::new("/home/u"),
-            Path::new("/cfg/claudectl/default-profile"),
-        );
+    fn shim_error_no_profile_in_scope_renders_key_paths() {
+        let msg = ShimError::NoProfileInScope {
+            cwd: PathBuf::from("/work/proj"),
+            home: PathBuf::from("/home/u"),
+            default_marker: PathBuf::from("/cfg/claudectl/default-profile"),
+        }
+        .to_string();
         assert!(msg.contains("no profile in scope"), "got: {msg}");
         assert!(msg.contains("/work/proj"), "got: {msg}");
         assert!(msg.contains("/home/u"), "got: {msg}");
@@ -182,12 +219,13 @@ mod tests {
     }
 
     #[test]
-    fn fmt_profile_dir_missing_includes_name_and_paths() {
-        let msg = fmt_profile_dir_missing(
-            "nonexistent",
-            Path::new("/marker/path"),
-            Path::new("/expected/dir"),
-        );
+    fn shim_error_profile_dir_missing_renders_name_and_paths() {
+        let msg = ShimError::ProfileDirMissing {
+            name: "nonexistent".to_string(),
+            marker: PathBuf::from("/marker/path"),
+            expected: PathBuf::from("/expected/dir"),
+        }
+        .to_string();
         assert!(msg.contains("'nonexistent'"), "got: {msg}");
         assert!(msg.contains("configured but missing"), "got: {msg}");
         assert!(msg.contains("/marker/path"), "got: {msg}");
