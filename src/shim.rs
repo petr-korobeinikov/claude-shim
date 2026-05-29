@@ -1,5 +1,5 @@
 use std::env;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::io;
 use std::os::unix::process::CommandExt;
@@ -11,15 +11,26 @@ use directories::BaseDirs;
 use crate::profile::{self, Resolution};
 
 pub fn run() -> ExitCode {
-    let env = match Env::from_system() {
-        Ok(e) => e,
+    let Some(base) = BaseDirs::new() else {
+        eprintln!("claudectl: cannot resolve base directories");
+        return ExitCode::from(2);
+    };
+    let cwd = match env::current_dir() {
+        Ok(p) => p,
         Err(e) => {
-            eprintln!("{e}");
+            eprintln!("claudectl: cannot read current directory: {e}");
             return ExitCode::from(2);
         }
     };
+    let Some(path) = env::var_os("PATH") else {
+        eprintln!("claudectl: PATH is unset");
+        return ExitCode::from(2);
+    };
+    let self_dir = env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(Path::to_path_buf));
 
-    let real_claude = match find_real_claude(&env) {
+    let real_claude = match find_real_claude(&path, self_dir.as_deref()) {
         Ok(p) => p,
         Err(e) => {
             eprintln!("{e}");
@@ -31,9 +42,9 @@ pub fn run() -> ExitCode {
     let mut cmd = Command::new(&real_claude);
     cmd.args(&args);
 
-    match profile::resolve(&env.cwd, &env.home, &env.config_dir) {
+    match profile::resolve(&cwd, base.home_dir(), base.config_dir()) {
         Resolution::Profile(p) => {
-            let dir = profile::profile_dir(&env.data_dir, &p.name);
+            let dir = profile::profile_dir(base.data_dir(), &p.name);
             if !dir.is_dir() {
                 eprintln!("{}", fmt_profile_dir_missing(&p.name, &p.marker, &dir));
                 return ExitCode::from(2);
@@ -42,10 +53,10 @@ pub fn run() -> ExitCode {
         }
         Resolution::Legacy => {}
         Resolution::None => {
-            let default_marker = env.config_dir.join("claudectl").join("default-profile");
+            let default_marker = base.config_dir().join("claudectl").join("default-profile");
             eprintln!(
                 "{}",
-                fmt_no_profile_in_scope(&env.cwd, &env.home, &default_marker)
+                fmt_no_profile_in_scope(&cwd, base.home_dir(), &default_marker)
             );
             return ExitCode::from(2);
         }
@@ -54,36 +65,6 @@ pub fn run() -> ExitCode {
     let err = cmd.exec();
     eprintln!("claudectl: failed to exec {}: {err}", real_claude.display());
     ExitCode::from(2)
-}
-
-pub(crate) struct Env {
-    pub home: PathBuf,
-    pub data_dir: PathBuf,
-    pub config_dir: PathBuf,
-    pub cwd: PathBuf,
-    pub path: OsString,
-    pub self_dir: Option<PathBuf>,
-}
-
-impl Env {
-    fn from_system() -> Result<Self, String> {
-        let base = BaseDirs::new()
-            .ok_or_else(|| "claudectl: cannot resolve base directories".to_string())?;
-        let cwd = env::current_dir()
-            .map_err(|e| format!("claudectl: cannot read current directory: {e}"))?;
-        let path = env::var_os("PATH").ok_or_else(|| "claudectl: PATH is unset".to_string())?;
-        let self_dir = env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(Path::to_path_buf));
-        Ok(Self {
-            home: base.home_dir().to_path_buf(),
-            data_dir: base.data_dir().to_path_buf(),
-            config_dir: base.config_dir().to_path_buf(),
-            cwd,
-            path,
-            self_dir,
-        })
-    }
 }
 
 fn fmt_no_profile_in_scope(cwd: &Path, home: &Path, default_marker: &Path) -> String {
@@ -114,10 +95,11 @@ fn fmt_profile_dir_missing(name: &str, marker: &Path, expected: &Path) -> String
     )
 }
 
-pub(crate) fn find_real_claude(env: &Env) -> Result<PathBuf, String> {
-    let self_dir = env.self_dir.as_deref();
-
-    for dir in env::split_paths(&env.path) {
+pub(crate) fn find_real_claude(
+    path: &OsStr,
+    self_dir: Option<&Path>,
+) -> Result<PathBuf, String> {
+    for dir in env::split_paths(path) {
         if Some(dir.as_path()) == self_dir {
             continue;
         }
@@ -221,16 +203,8 @@ mod tests {
         p
     }
 
-    fn env_with_path(dirs: &[&Path], self_dir: Option<&Path>) -> Env {
-        let path = std::env::join_paths(dirs.iter().map(|p| p.as_os_str())).unwrap();
-        Env {
-            home: PathBuf::new(),
-            data_dir: PathBuf::new(),
-            config_dir: PathBuf::new(),
-            cwd: PathBuf::new(),
-            path,
-            self_dir: self_dir.map(Path::to_path_buf),
-        }
+    fn join_path(dirs: &[&Path]) -> OsString {
+        std::env::join_paths(dirs.iter().map(|p| p.as_os_str())).unwrap()
     }
 
     #[test]
@@ -238,8 +212,8 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let claude = make_executable(dir.path(), "claude");
 
-        let env = env_with_path(&[dir.path()], None);
-        assert_eq!(find_real_claude(&env).unwrap(), claude);
+        let path = join_path(&[dir.path()]);
+        assert_eq!(find_real_claude(&path, None).unwrap(), claude);
     }
 
     #[test]
@@ -249,15 +223,15 @@ mod tests {
         let _shim = make_executable(shim_dir.path(), "claude");
         let real = make_executable(real_dir.path(), "claude");
 
-        let env = env_with_path(&[shim_dir.path(), real_dir.path()], Some(shim_dir.path()));
-        assert_eq!(find_real_claude(&env).unwrap(), real);
+        let path = join_path(&[shim_dir.path(), real_dir.path()]);
+        assert_eq!(find_real_claude(&path, Some(shim_dir.path())).unwrap(), real);
     }
 
     #[test]
     fn find_real_claude_fails_when_absent() {
         let dir = TempDir::new().unwrap();
-        let env = env_with_path(&[dir.path()], None);
-        let err = find_real_claude(&env).unwrap_err();
+        let path = join_path(&[dir.path()]);
+        let err = find_real_claude(&path, None).unwrap_err();
         assert!(err.contains("not found on PATH"), "got: {err}");
     }
 
@@ -267,8 +241,8 @@ mod tests {
         let p = dir.path().join("claude");
         fs::write(&p, "not exec").unwrap();
 
-        let env = env_with_path(&[dir.path()], None);
-        assert!(find_real_claude(&env).is_err());
+        let path = join_path(&[dir.path()]);
+        assert!(find_real_claude(&path, None).is_err());
     }
 
     #[test]
