@@ -1,8 +1,31 @@
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use directories::BaseDirs;
+
+pub(crate) enum Resolution {
+    Profile(ProfileRef),
+    Legacy,
+    None,
+}
+
+pub(crate) struct ProfileRef {
+    pub name: String,
+    pub source: ProfileSource,
+    pub marker: PathBuf,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub(crate) enum ProfileSource {
+    Project,
+    Default,
+}
+
+pub(crate) struct ProjectMarker {
+    pub name: String,
+    pub path: PathBuf,
+}
 
 pub fn current() -> ExitCode {
     let cwd = match env::current_dir() {
@@ -15,35 +38,56 @@ pub fn current() -> ExitCode {
     };
 
     match resolve(&cwd, base.home_dir(), base.config_dir()) {
-        Resolved::Project(name) => emit(&name, base.data_dir(), Severity::Loud),
-        Resolved::Default(name) => emit(&name, base.data_dir(), Severity::Silent),
-        Resolved::None => ExitCode::SUCCESS,
+        Resolution::Profile(p) => emit(&p.name, base.data_dir(), p.source),
+        Resolution::Legacy | Resolution::None => ExitCode::SUCCESS,
     }
 }
 
-enum Resolved {
-    Project(String),
-    Default(String),
-    None,
-}
-
-enum Severity {
-    Loud,
-    Silent,
-}
-
-fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolved {
-    if let Some(name) = find_profile_name_bounded(cwd, Some(home)) {
-        return Resolved::Project(name);
+pub(crate) fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolution {
+    if let Some(m) = find_project_marker(cwd, Some(home)) {
+        return Resolution::Profile(ProfileRef {
+            name: m.name,
+            source: ProfileSource::Project,
+            marker: m.path,
+        });
     }
     let default_marker = config_dir.join("claudectl").join("default-profile");
-    if let Some(name) = read_default_marker(&default_marker) {
-        return Resolved::Default(name);
+    if let Some(name) = read_marker_file(&default_marker) {
+        return Resolution::Profile(ProfileRef {
+            name,
+            source: ProfileSource::Default,
+            marker: default_marker,
+        });
     }
-    Resolved::None
+    if home.join(".claude").is_dir() {
+        return Resolution::Legacy;
+    }
+    Resolution::None
 }
 
-fn read_default_marker(path: &Path) -> Option<String> {
+pub(crate) fn find_project_marker(start: &Path, stop_at: Option<&Path>) -> Option<ProjectMarker> {
+    for dir in start.ancestors() {
+        if matches!(stop_at, Some(s) if dir == s) {
+            break;
+        }
+        let candidate = dir.join(".claude").join("claudectl-profile");
+        if candidate.is_file()
+            && let Some(name) = read_marker_file(&candidate)
+        {
+            return Some(ProjectMarker {
+                name,
+                path: candidate,
+            });
+        }
+    }
+    None
+}
+
+pub(crate) fn profile_dir(data_dir: &Path, name: &str) -> PathBuf {
+    data_dir.join("claudectl").join("profiles").join(name)
+}
+
+fn read_marker_file(path: &Path) -> Option<String> {
     let content = std::fs::read_to_string(path).ok()?;
     let name = content.lines().next().unwrap_or("").trim();
     if name.is_empty() {
@@ -53,50 +97,28 @@ fn read_default_marker(path: &Path) -> Option<String> {
     }
 }
 
-fn emit(name: &str, data_dir: &Path, severity: Severity) -> ExitCode {
+fn emit(name: &str, data_dir: &Path, source: ProfileSource) -> ExitCode {
+    let loud = matches!(source, ProfileSource::Project);
     if !is_valid_profile_name(name) {
-        return match severity {
-            Severity::Loud => {
-                eprintln!("claudectl: invalid profile name '{name}'");
-                ExitCode::from(2)
-            }
-            Severity::Silent => ExitCode::SUCCESS,
-        };
+        if loud {
+            eprintln!("claudectl: invalid profile name '{name}'");
+            return ExitCode::from(2);
+        }
+        return ExitCode::SUCCESS;
     }
-    let profile_dir = data_dir.join("claudectl").join("profiles").join(name);
-    if profile_dir.is_dir() {
+    let dir = profile_dir(data_dir, name);
+    if dir.is_dir() {
         println!("{name}");
         ExitCode::SUCCESS
+    } else if loud {
+        eprintln!(
+            "claudectl: profile '{name}' is referenced but {} does not exist",
+            dir.display()
+        );
+        ExitCode::from(2)
     } else {
-        match severity {
-            Severity::Loud => {
-                eprintln!(
-                    "claudectl: profile '{name}' is referenced but {} does not exist",
-                    profile_dir.display()
-                );
-                ExitCode::from(2)
-            }
-            Severity::Silent => ExitCode::SUCCESS,
-        }
+        ExitCode::SUCCESS
     }
-}
-
-pub(crate) fn find_profile_name_bounded(start: &Path, stop_at: Option<&Path>) -> Option<String> {
-    for dir in start.ancestors() {
-        if matches!(stop_at, Some(s) if dir == s) {
-            break;
-        }
-        let candidate = dir.join(".claude").join("claudectl-profile");
-        if candidate.is_file()
-            && let Ok(content) = std::fs::read_to_string(&candidate)
-        {
-            let name = content.lines().next().unwrap_or("").trim();
-            if !name.is_empty() {
-                return Some(name.to_string());
-            }
-        }
-    }
-    None
 }
 
 fn is_valid_profile_name(name: &str) -> bool {
@@ -143,87 +165,85 @@ mod tests {
         assert!(!is_valid_profile_name("a\0b"));
     }
 
-    fn write_profile(dir: &Path, name: &str) {
+    fn write_project_marker(dir: &Path, name: &str) -> PathBuf {
         let claude = dir.join(".claude");
         fs::create_dir_all(&claude).unwrap();
-        fs::write(claude.join("claudectl-profile"), name).unwrap();
+        let marker = claude.join("claudectl-profile");
+        fs::write(&marker, name).unwrap();
+        marker
     }
 
     #[test]
-    fn find_profile_name_returns_none_when_absent() {
+    fn find_project_marker_returns_none_when_absent() {
         let dir = TempDir::new().unwrap();
-        assert!(find_profile_name_bounded(dir.path(), None).is_none());
+        assert!(find_project_marker(dir.path(), None).is_none());
     }
 
     #[test]
-    fn find_profile_name_reads_first_line() {
+    fn find_project_marker_reads_first_line_and_returns_path() {
         let dir = TempDir::new().unwrap();
-        write_profile(dir.path(), "myprofile\nignored");
+        let marker = write_project_marker(dir.path(), "myprofile\nignored");
+        let got = find_project_marker(dir.path(), None).unwrap();
+        assert_eq!(got.name, "myprofile");
+        assert_eq!(got.path, marker);
+    }
+
+    #[test]
+    fn find_project_marker_trims_whitespace() {
+        let dir = TempDir::new().unwrap();
+        write_project_marker(dir.path(), "  trimmed  ");
         assert_eq!(
-            find_profile_name_bounded(dir.path(), None).as_deref(),
-            Some("myprofile")
+            find_project_marker(dir.path(), None).unwrap().name,
+            "trimmed"
         );
     }
 
     #[test]
-    fn find_profile_name_trims_whitespace() {
+    fn find_project_marker_skips_empty_file() {
         let dir = TempDir::new().unwrap();
-        write_profile(dir.path(), "  trimmed  ");
-        assert_eq!(
-            find_profile_name_bounded(dir.path(), None).as_deref(),
-            Some("trimmed")
-        );
+        write_project_marker(dir.path(), "");
+        assert!(find_project_marker(dir.path(), None).is_none());
     }
 
     #[test]
-    fn find_profile_name_skips_empty_file() {
+    fn find_project_marker_walks_up_from_nested_dir() {
         let dir = TempDir::new().unwrap();
-        write_profile(dir.path(), "");
-        assert!(find_profile_name_bounded(dir.path(), None).is_none());
-    }
-
-    #[test]
-    fn find_profile_name_walks_up_from_nested_dir() {
-        let dir = TempDir::new().unwrap();
-        write_profile(dir.path(), "outer");
+        let outer_marker = write_project_marker(dir.path(), "outer");
         let nested = dir.path().join("a/b/c");
         fs::create_dir_all(&nested).unwrap();
-        assert_eq!(
-            find_profile_name_bounded(&nested, None).as_deref(),
-            Some("outer")
-        );
+        let got = find_project_marker(&nested, None).unwrap();
+        assert_eq!(got.name, "outer");
+        assert_eq!(got.path, outer_marker);
     }
 
     #[test]
-    fn find_profile_name_takes_nearest_match() {
+    fn find_project_marker_takes_nearest_match() {
         let dir = TempDir::new().unwrap();
-        write_profile(dir.path(), "outer");
+        write_project_marker(dir.path(), "outer");
         let nested = dir.path().join("inner");
-        write_profile(&nested, "nearest");
-        assert_eq!(
-            find_profile_name_bounded(&nested, None).as_deref(),
-            Some("nearest")
-        );
+        let near_marker = write_project_marker(&nested, "nearest");
+        let got = find_project_marker(&nested, None).unwrap();
+        assert_eq!(got.name, "nearest");
+        assert_eq!(got.path, near_marker);
     }
 
     #[test]
-    fn find_profile_name_bounded_stops_before_bound() {
+    fn find_project_marker_bounded_stops_before_bound() {
         let dir = TempDir::new().unwrap();
-        write_profile(dir.path(), "outside-bound");
+        write_project_marker(dir.path(), "outside-bound");
         let nested = dir.path().join("inner");
         fs::create_dir_all(&nested).unwrap();
 
-        assert!(find_profile_name_bounded(&nested, Some(dir.path())).is_none());
-        assert_eq!(
-            find_profile_name_bounded(&nested, None).as_deref(),
-            Some("outside-bound")
-        );
+        assert!(find_project_marker(&nested, Some(dir.path())).is_none());
+        assert!(find_project_marker(&nested, None).is_some());
     }
 
-    fn write_default_marker(config: &Path, name: &str) {
+    fn write_default_marker(config: &Path, name: &str) -> PathBuf {
         let dir = config.join("claudectl");
         fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("default-profile"), name).unwrap();
+        let marker = dir.join("default-profile");
+        fs::write(&marker, name).unwrap();
+        marker
     }
 
     #[test]
@@ -231,13 +251,17 @@ mod tests {
         let home = TempDir::new().unwrap();
         let config = TempDir::new().unwrap();
         let project = TempDir::new().unwrap();
-        write_profile(project.path(), "proj");
+        let proj_marker = write_project_marker(project.path(), "proj");
         write_default_marker(config.path(), "global");
 
-        assert!(matches!(
-            resolve(project.path(), home.path(), config.path()),
-            Resolved::Project(ref n) if n == "proj"
-        ));
+        match resolve(project.path(), home.path(), config.path()) {
+            Resolution::Profile(p) => {
+                assert_eq!(p.name, "proj");
+                assert_eq!(p.source, ProfileSource::Project);
+                assert_eq!(p.marker, proj_marker);
+            }
+            other => panic!("expected Project, got {:?}", matches!(other, Resolution::Profile(_))),
+        }
     }
 
     #[test]
@@ -245,11 +269,28 @@ mod tests {
         let home = TempDir::new().unwrap();
         let config = TempDir::new().unwrap();
         let project = TempDir::new().unwrap();
-        write_default_marker(config.path(), "global");
+        let def_marker = write_default_marker(config.path(), "global");
+
+        match resolve(project.path(), home.path(), config.path()) {
+            Resolution::Profile(p) => {
+                assert_eq!(p.name, "global");
+                assert_eq!(p.source, ProfileSource::Default);
+                assert_eq!(p.marker, def_marker);
+            }
+            _ => panic!("expected Default profile"),
+        }
+    }
+
+    #[test]
+    fn resolve_returns_legacy_when_home_claude_exists() {
+        let home = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let project = TempDir::new().unwrap();
+        fs::create_dir_all(home.path().join(".claude")).unwrap();
 
         assert!(matches!(
             resolve(project.path(), home.path(), config.path()),
-            Resolved::Default(ref n) if n == "global"
+            Resolution::Legacy
         ));
     }
 
@@ -261,29 +302,29 @@ mod tests {
 
         assert!(matches!(
             resolve(project.path(), home.path(), config.path()),
-            Resolved::None
+            Resolution::None
         ));
     }
 
     #[test]
-    fn read_default_marker_returns_none_for_missing_file() {
+    fn read_marker_file_returns_none_for_missing_file() {
         let dir = TempDir::new().unwrap();
-        assert!(read_default_marker(&dir.path().join("absent")).is_none());
+        assert!(read_marker_file(&dir.path().join("absent")).is_none());
     }
 
     #[test]
-    fn read_default_marker_trims_and_takes_first_line() {
+    fn read_marker_file_trims_and_takes_first_line() {
         let dir = TempDir::new().unwrap();
-        let p = dir.path().join("default-profile");
+        let p = dir.path().join("marker");
         fs::write(&p, "  spaced  \nignored").unwrap();
-        assert_eq!(read_default_marker(&p).as_deref(), Some("spaced"));
+        assert_eq!(read_marker_file(&p).as_deref(), Some("spaced"));
     }
 
     #[test]
-    fn read_default_marker_rejects_empty() {
+    fn read_marker_file_rejects_empty() {
         let dir = TempDir::new().unwrap();
-        let p = dir.path().join("default-profile");
+        let p = dir.path().join("marker");
         fs::write(&p, "").unwrap();
-        assert!(read_default_marker(&p).is_none());
+        assert!(read_marker_file(&p).is_none());
     }
 }

@@ -8,19 +8,11 @@ use std::process::{Command, ExitCode};
 
 use directories::BaseDirs;
 
-use crate::profile::find_profile_name_bounded;
+use crate::profile::{self, Resolution};
 
 pub fn run() -> ExitCode {
     let env = match Env::from_system() {
         Ok(e) => e,
-        Err(e) => {
-            eprintln!("{e}");
-            return ExitCode::from(2);
-        }
-    };
-
-    let resolution = match resolve_profile(&env) {
-        Ok(r) => r,
         Err(e) => {
             eprintln!("{e}");
             return ExitCode::from(2);
@@ -38,8 +30,25 @@ pub fn run() -> ExitCode {
     let args: Vec<OsString> = env::args_os().skip(1).collect();
     let mut cmd = Command::new(&real_claude);
     cmd.args(&args);
-    if let Resolution::Profile(dir) = &resolution {
-        cmd.env("CLAUDE_CONFIG_DIR", dir);
+
+    match profile::resolve(&env.cwd, &env.home, &env.config_dir) {
+        Resolution::Profile(p) => {
+            let dir = profile::profile_dir(&env.data_dir, &p.name);
+            if !dir.is_dir() {
+                eprintln!("{}", fmt_profile_dir_missing(&p.name, &p.marker, &dir));
+                return ExitCode::from(2);
+            }
+            cmd.env("CLAUDE_CONFIG_DIR", &dir);
+        }
+        Resolution::Legacy => {}
+        Resolution::None => {
+            let default_marker = env.config_dir.join("claudectl").join("default-profile");
+            eprintln!(
+                "{}",
+                fmt_no_profile_in_scope(&env.cwd, &env.home, &default_marker)
+            );
+            return ExitCode::from(2);
+        }
     }
 
     let err = cmd.exec();
@@ -77,66 +86,32 @@ impl Env {
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub(crate) enum Resolution {
-    Profile(PathBuf),
-    Legacy,
-}
-
-pub(crate) fn resolve_profile(env: &Env) -> Result<Resolution, String> {
-    if let Some(name) = find_profile_name_bounded(&env.cwd, Some(&env.home)) {
-        let marker = env.cwd.join(".claude").join("claudectl-profile");
-        return profile_dir(&env.data_dir, &name, &marker);
-    }
-
-    let default_marker = env.config_dir.join("claudectl").join("default-profile");
-    if let Some(name) = read_marker(&default_marker) {
-        return profile_dir(&env.data_dir, &name, &default_marker);
-    }
-
-    if env.home.join(".claude").is_dir() {
-        return Ok(Resolution::Legacy);
-    }
-
-    Err(format!(
+fn fmt_no_profile_in_scope(cwd: &Path, home: &Path, default_marker: &Path) -> String {
+    format!(
         "claudectl: refusing to run `claude` — no profile in scope.\n  \
          searched .claude/claudectl-profile from {} up to {}\n  \
          and {}\n\n\
          Pick a profile explicitly to avoid leaking credentials across contexts:\n  \
          echo <name> > .claude/claudectl-profile      # for this project\n  \
          echo <name> > {}    # as your default",
-        env.cwd.display(),
-        env.home.display(),
+        cwd.display(),
+        home.display(),
         default_marker.display(),
         default_marker.display(),
-    ))
+    )
 }
 
-fn profile_dir(data_dir: &Path, name: &str, marker_origin: &Path) -> Result<Resolution, String> {
-    let dir = data_dir.join("claudectl").join("profiles").join(name);
-    if !dir.is_dir() {
-        return Err(format!(
-            "claudectl: refusing to run `claude` — profile '{name}' is configured but missing.\n  \
-             marker:   {}\n  \
-             expected: {}\n\n\
-             Create the profile or fix the marker:\n  \
-             mkdir -p {}",
-            marker_origin.display(),
-            dir.display(),
-            dir.display(),
-        ));
-    }
-    Ok(Resolution::Profile(dir))
-}
-
-fn read_marker(path: &Path) -> Option<String> {
-    let content = std::fs::read_to_string(path).ok()?;
-    let name = content.lines().next().unwrap_or("").trim();
-    if name.is_empty() {
-        None
-    } else {
-        Some(name.to_string())
-    }
+fn fmt_profile_dir_missing(name: &str, marker: &Path, expected: &Path) -> String {
+    format!(
+        "claudectl: refusing to run `claude` — profile '{name}' is configured but missing.\n  \
+         marker:   {}\n  \
+         expected: {}\n\n\
+         Create the profile or fix the marker:\n  \
+         mkdir -p {}",
+        marker.display(),
+        expected.display(),
+        expected.display(),
+    )
 }
 
 pub(crate) fn find_real_claude(env: &Env) -> Result<PathBuf, String> {
@@ -208,109 +183,33 @@ mod tests {
     use std::os::unix::fs::PermissionsExt;
     use tempfile::TempDir;
 
-    fn make_env(home: &Path, data: &Path, config: &Path, cwd: &Path) -> Env {
-        Env {
-            home: home.to_path_buf(),
-            data_dir: data.to_path_buf(),
-            config_dir: config.to_path_buf(),
-            cwd: cwd.to_path_buf(),
-            path: OsString::new(),
-            self_dir: None,
-        }
-    }
-
-    fn write_profile_dir(data: &Path, name: &str) -> PathBuf {
-        let dir = data.join("claudectl").join("profiles").join(name);
-        fs::create_dir_all(&dir).unwrap();
-        dir
-    }
-
-    fn write_project_marker(project: &Path, name: &str) {
-        let claude = project.join(".claude");
-        fs::create_dir_all(&claude).unwrap();
-        fs::write(claude.join("claudectl-profile"), name).unwrap();
-    }
-
-    fn write_default_marker(config: &Path, name: &str) {
-        let dir = config.join("claudectl");
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("default-profile"), name).unwrap();
-    }
-
     #[test]
-    fn resolve_project_marker_wins_over_xdg_default() {
-        let home = TempDir::new().unwrap();
-        let data = TempDir::new().unwrap();
-        let config = TempDir::new().unwrap();
-        let project = TempDir::new().unwrap();
-
-        let expected = write_profile_dir(data.path(), "proj");
-        write_project_marker(project.path(), "proj");
-        write_profile_dir(data.path(), "default");
-        write_default_marker(config.path(), "default");
-
-        let env = make_env(home.path(), data.path(), config.path(), project.path());
-        assert_eq!(
-            resolve_profile(&env).unwrap(),
-            Resolution::Profile(expected)
+    fn fmt_no_profile_in_scope_mentions_key_paths() {
+        let msg = fmt_no_profile_in_scope(
+            Path::new("/work/proj"),
+            Path::new("/home/u"),
+            Path::new("/cfg/claudectl/default-profile"),
+        );
+        assert!(msg.contains("no profile in scope"), "got: {msg}");
+        assert!(msg.contains("/work/proj"), "got: {msg}");
+        assert!(msg.contains("/home/u"), "got: {msg}");
+        assert!(
+            msg.contains("/cfg/claudectl/default-profile"),
+            "got: {msg}"
         );
     }
 
     #[test]
-    fn resolve_xdg_default_when_no_project_marker() {
-        let home = TempDir::new().unwrap();
-        let data = TempDir::new().unwrap();
-        let config = TempDir::new().unwrap();
-        let project = TempDir::new().unwrap();
-
-        let expected = write_profile_dir(data.path(), "personal");
-        write_default_marker(config.path(), "personal");
-
-        let env = make_env(home.path(), data.path(), config.path(), project.path());
-        assert_eq!(
-            resolve_profile(&env).unwrap(),
-            Resolution::Profile(expected)
+    fn fmt_profile_dir_missing_includes_name_and_paths() {
+        let msg = fmt_profile_dir_missing(
+            "nonexistent",
+            Path::new("/marker/path"),
+            Path::new("/expected/dir"),
         );
-    }
-
-    #[test]
-    fn resolve_legacy_when_no_markers_but_home_claude_exists() {
-        let home = TempDir::new().unwrap();
-        let data = TempDir::new().unwrap();
-        let config = TempDir::new().unwrap();
-        let project = TempDir::new().unwrap();
-
-        fs::create_dir_all(home.path().join(".claude")).unwrap();
-
-        let env = make_env(home.path(), data.path(), config.path(), project.path());
-        assert_eq!(resolve_profile(&env).unwrap(), Resolution::Legacy);
-    }
-
-    #[test]
-    fn resolve_fail_loud_when_nothing_in_scope() {
-        let home = TempDir::new().unwrap();
-        let data = TempDir::new().unwrap();
-        let config = TempDir::new().unwrap();
-        let project = TempDir::new().unwrap();
-
-        let env = make_env(home.path(), data.path(), config.path(), project.path());
-        let err = resolve_profile(&env).unwrap_err();
-        assert!(err.contains("no profile in scope"), "got: {err}");
-    }
-
-    #[test]
-    fn resolve_fail_loud_when_profile_dir_missing() {
-        let home = TempDir::new().unwrap();
-        let data = TempDir::new().unwrap();
-        let config = TempDir::new().unwrap();
-        let project = TempDir::new().unwrap();
-
-        write_project_marker(project.path(), "nonexistent");
-
-        let env = make_env(home.path(), data.path(), config.path(), project.path());
-        let err = resolve_profile(&env).unwrap_err();
-        assert!(err.contains("'nonexistent'"), "got: {err}");
-        assert!(err.contains("configured but missing"), "got: {err}");
+        assert!(msg.contains("'nonexistent'"), "got: {msg}");
+        assert!(msg.contains("configured but missing"), "got: {msg}");
+        assert!(msg.contains("/marker/path"), "got: {msg}");
+        assert!(msg.contains("/expected/dir"), "got: {msg}");
     }
 
     fn make_executable(dir: &Path, name: &str) -> PathBuf {
@@ -392,7 +291,7 @@ mod tests {
         let shims = root.path().join("shims");
 
         ensure_shim_at(&exe, &shims).unwrap();
-        ensure_shim_at(&exe, &shims).unwrap(); // should not error
+        ensure_shim_at(&exe, &shims).unwrap();
 
         assert_eq!(fs::read_link(shims.join("claude")).unwrap(), exe);
     }
