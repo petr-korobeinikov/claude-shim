@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::env;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -12,33 +13,24 @@ use directories::BaseDirs;
 use crate::profile::{self, Resolution};
 
 pub fn run() -> ExitCode {
-    let Some(base) = BaseDirs::new() else {
-        eprintln!("claudectl: cannot resolve base directories");
-        return ExitCode::from(2);
-    };
-    let cwd = match env::current_dir() {
-        Ok(p) => p,
+    match try_run() {
+        Ok(never) => match never {},
         Err(e) => {
-            eprintln!("claudectl: cannot read current directory: {e}");
-            return ExitCode::from(2);
+            eprintln!("{e}");
+            ExitCode::from(2)
         }
-    };
-    let Some(path) = env::var_os("PATH") else {
-        eprintln!("claudectl: PATH is unset");
-        return ExitCode::from(2);
-    };
+    }
+}
+
+fn try_run() -> Result<Infallible, ShimError> {
+    let base = BaseDirs::new().ok_or(ShimError::BaseDirsUnavailable)?;
+    let cwd = env::current_dir().map_err(ShimError::CwdUnreadable)?;
+    let path = env::var_os("PATH").ok_or(ShimError::PathUnset)?;
     let self_dir = env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(Path::to_path_buf));
 
-    let real_claude = match find_real_claude(&path, self_dir.as_deref()) {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("{e}");
-            return ExitCode::from(2);
-        }
-    };
-
+    let real_claude = find_real_claude(&path, self_dir.as_deref())?;
     let args: Vec<OsString> = env::args_os().skip(1).collect();
     let mut cmd = Command::new(&real_claude);
     cmd.args(&args);
@@ -47,39 +39,40 @@ pub fn run() -> ExitCode {
         Resolution::Profile(p) => {
             let dir = profile::profile_dir(base.data_dir(), &p.name);
             if !dir.is_dir() {
-                eprintln!(
-                    "{}",
-                    ShimError::ProfileDirMissing {
-                        name: p.name,
-                        marker: p.marker,
-                        expected: dir,
-                    }
-                );
-                return ExitCode::from(2);
+                return Err(ShimError::ProfileDirMissing {
+                    name: p.name,
+                    marker: p.marker,
+                    expected: dir,
+                });
             }
             cmd.env("CLAUDE_CONFIG_DIR", &dir);
         }
         Resolution::Legacy => {}
         Resolution::None => {
             let default_marker = base.config_dir().join("claudectl").join("default-profile");
-            eprintln!(
-                "{}",
-                ShimError::NoProfileInScope {
-                    cwd,
-                    home: base.home_dir().to_path_buf(),
-                    default_marker,
-                }
-            );
-            return ExitCode::from(2);
+            return Err(ShimError::NoProfileInScope {
+                cwd,
+                home: base.home_dir().to_path_buf(),
+                default_marker,
+            });
         }
     }
 
     let err = cmd.exec();
-    eprintln!("claudectl: failed to exec {}: {err}", real_claude.display());
-    ExitCode::from(2)
+    Err(ShimError::ExecFailed {
+        path: real_claude,
+        error: err,
+    })
 }
 
+#[derive(Debug)]
 enum ShimError {
+    BaseDirsUnavailable,
+    CwdUnreadable(io::Error),
+    PathUnset,
+    RealClaudeNotFound {
+        self_dir: Option<PathBuf>,
+    },
     NoProfileInScope {
         cwd: PathBuf,
         home: PathBuf,
@@ -90,11 +83,31 @@ enum ShimError {
         marker: PathBuf,
         expected: PathBuf,
     },
+    ExecFailed {
+        path: PathBuf,
+        error: io::Error,
+    },
 }
 
 impl fmt::Display for ShimError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::BaseDirsUnavailable => {
+                write!(f, "claudectl: cannot resolve base directories")
+            }
+            Self::CwdUnreadable(e) => {
+                write!(f, "claudectl: cannot read current directory: {e}")
+            }
+            Self::PathUnset => write!(f, "claudectl: PATH is unset"),
+            Self::RealClaudeNotFound { self_dir } => write!(
+                f,
+                "claudectl: real `claude` not found on PATH (excluded shim dir: {}).\n\
+                 Install Claude Code first.",
+                self_dir
+                    .as_deref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "<unknown>".to_string()),
+            ),
             Self::NoProfileInScope {
                 cwd,
                 home,
@@ -127,14 +140,14 @@ impl fmt::Display for ShimError {
                 expected.display(),
                 expected.display(),
             ),
+            Self::ExecFailed { path, error } => {
+                write!(f, "claudectl: failed to exec {}: {error}", path.display())
+            }
         }
     }
 }
 
-pub(crate) fn find_real_claude(
-    path: &OsStr,
-    self_dir: Option<&Path>,
-) -> Result<PathBuf, String> {
+fn find_real_claude(path: &OsStr, self_dir: Option<&Path>) -> Result<PathBuf, ShimError> {
     for dir in env::split_paths(path) {
         if Some(dir.as_path()) == self_dir {
             continue;
@@ -144,14 +157,9 @@ pub(crate) fn find_real_claude(
             return Ok(candidate);
         }
     }
-
-    Err(format!(
-        "claudectl: real `claude` not found on PATH (excluded shim dir: {}).\n\
-         Install Claude Code first.",
-        self_dir
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|| "<unknown>".to_string()),
-    ))
+    Err(ShimError::RealClaudeNotFound {
+        self_dir: self_dir.map(Path::to_path_buf),
+    })
 }
 
 fn is_executable(p: &Path) -> bool {
@@ -202,6 +210,44 @@ mod tests {
     use tempfile::TempDir;
 
     #[test]
+    fn shim_error_base_dirs_unavailable_renders() {
+        let msg = ShimError::BaseDirsUnavailable.to_string();
+        assert!(msg.contains("cannot resolve base directories"), "got: {msg}");
+    }
+
+    #[test]
+    fn shim_error_cwd_unreadable_renders() {
+        let err = io::Error::new(io::ErrorKind::PermissionDenied, "denied");
+        let msg = ShimError::CwdUnreadable(err).to_string();
+        assert!(msg.contains("cannot read current directory"), "got: {msg}");
+        assert!(msg.contains("denied"), "got: {msg}");
+    }
+
+    #[test]
+    fn shim_error_path_unset_renders() {
+        let msg = ShimError::PathUnset.to_string();
+        assert!(msg.contains("PATH is unset"), "got: {msg}");
+    }
+
+    #[test]
+    fn shim_error_real_claude_not_found_renders_with_dir() {
+        let msg = ShimError::RealClaudeNotFound {
+            self_dir: Some(PathBuf::from("/some/shim/dir")),
+        }
+        .to_string();
+        assert!(msg.contains("not found on PATH"), "got: {msg}");
+        assert!(msg.contains("/some/shim/dir"), "got: {msg}");
+        assert!(msg.contains("Install Claude Code"), "got: {msg}");
+    }
+
+    #[test]
+    fn shim_error_real_claude_not_found_renders_without_dir() {
+        let msg = ShimError::RealClaudeNotFound { self_dir: None }.to_string();
+        assert!(msg.contains("not found on PATH"), "got: {msg}");
+        assert!(msg.contains("<unknown>"), "got: {msg}");
+    }
+
+    #[test]
     fn shim_error_no_profile_in_scope_renders_key_paths() {
         let msg = ShimError::NoProfileInScope {
             cwd: PathBuf::from("/work/proj"),
@@ -230,6 +276,19 @@ mod tests {
         assert!(msg.contains("configured but missing"), "got: {msg}");
         assert!(msg.contains("/marker/path"), "got: {msg}");
         assert!(msg.contains("/expected/dir"), "got: {msg}");
+    }
+
+    #[test]
+    fn shim_error_exec_failed_renders() {
+        let err = io::Error::new(io::ErrorKind::NotFound, "no such file");
+        let msg = ShimError::ExecFailed {
+            path: PathBuf::from("/bin/claude"),
+            error: err,
+        }
+        .to_string();
+        assert!(msg.contains("failed to exec"), "got: {msg}");
+        assert!(msg.contains("/bin/claude"), "got: {msg}");
+        assert!(msg.contains("no such file"), "got: {msg}");
     }
 
     fn make_executable(dir: &Path, name: &str) -> PathBuf {
@@ -269,8 +328,10 @@ mod tests {
     fn find_real_claude_fails_when_absent() {
         let dir = TempDir::new().unwrap();
         let path = join_path(&[dir.path()]);
-        let err = find_real_claude(&path, None).unwrap_err();
-        assert!(err.contains("not found on PATH"), "got: {err}");
+        match find_real_claude(&path, None).unwrap_err() {
+            ShimError::RealClaudeNotFound { self_dir } => assert!(self_dir.is_none()),
+            other => panic!("expected RealClaudeNotFound, got {other:?}"),
+        }
     }
 
     #[test]
@@ -280,7 +341,10 @@ mod tests {
         fs::write(&p, "not exec").unwrap();
 
         let path = join_path(&[dir.path()]);
-        assert!(find_real_claude(&path, None).is_err());
+        assert!(matches!(
+            find_real_claude(&path, None),
+            Err(ShimError::RealClaudeNotFound { .. })
+        ));
     }
 
     #[test]
