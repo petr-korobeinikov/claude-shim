@@ -21,7 +21,6 @@ pub enum Command {
 #[derive(Copy, Clone, ValueEnum)]
 pub enum Target {
     Zsh,
-    OhMyPosh,
 }
 
 #[cfg(test)]
@@ -35,17 +34,6 @@ mod tests {
             cli.command,
             Command::Init {
                 target: Target::Zsh
-            }
-        ));
-    }
-
-    #[test]
-    fn parses_init_oh_my_posh() {
-        let cli = Cli::try_parse_from(["claudectl", "init", "oh-my-posh"]).unwrap();
-        assert!(matches!(
-            cli.command,
-            Command::Init {
-                target: Target::OhMyPosh
             }
         ));
     }

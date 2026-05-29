@@ -24,10 +24,6 @@ fn shims_dir() -> String {
         .unwrap_or_else(|| "$HOME/.local/share/claudectl/shims".to_string())
 }
 
-pub fn oh_my_posh() -> String {
-    OH_MY_POSH_SNIPPET.to_string()
-}
-
 fn shell_quote(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('\'');
@@ -74,13 +70,6 @@ _claudectl_precmd() {
 }
 typeset -ag precmd_functions
 precmd_functions=(_claudectl_precmd ${precmd_functions[@]:#_claudectl_precmd})
-"#;
-
-const OH_MY_POSH_SNIPPET: &str = r#"{
-  "type": "text",
-  "style": "plain",
-  "template": "{{ if .Env.CLAUDECTL_ACTIVE_PROFILE }}[{{ .Env.CLAUDECTL_ACTIVE_PROFILE }}] {{ end }}"
-}
 "#;
 
 #[cfg(test)]
@@ -163,13 +152,5 @@ mod tests {
     fn zsh_exports_profile_var() {
         let snippet = zsh();
         assert!(snippet.contains("export CLAUDECTL_ACTIVE_PROFILE"));
-    }
-
-    #[test]
-    fn oh_my_posh_is_a_text_segment() {
-        let snippet = oh_my_posh();
-        assert!(snippet.trim_start().starts_with('{'));
-        assert!(snippet.contains(r#""type": "text""#));
-        assert!(snippet.contains(".Env.CLAUDECTL_ACTIVE_PROFILE"));
     }
 }

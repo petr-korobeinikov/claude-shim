@@ -11,13 +11,11 @@ use cli::{Cli, Command, Target};
 
 pub fn run() -> ExitCode {
     match Cli::parse().command {
-        Command::Init { target } => {
+        Command::Init {
+            target: Target::Zsh,
+        } => {
             shim::ensure_shim();
-            let snippet = match target {
-                Target::Zsh => init::zsh(),
-                Target::OhMyPosh => init::oh_my_posh(),
-            };
-            print!("{snippet}");
+            print!("{}", init::zsh());
             ExitCode::SUCCESS
         }
         Command::Current => profile::current(),
