@@ -12,19 +12,19 @@ pub(crate) enum Resolution {
 
 pub(crate) struct ProfileRef {
     pub name: String,
-    pub source: ProfileSource,
+    source: ProfileSource,
     pub marker: PathBuf,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub(crate) enum ProfileSource {
+enum ProfileSource {
     Project,
     Default,
 }
 
-pub(crate) struct ProjectMarker {
-    pub name: String,
-    pub path: PathBuf,
+struct ProjectMarker {
+    name: String,
+    path: PathBuf,
 }
 
 pub fn current() -> ExitCode {
@@ -65,7 +65,7 @@ pub(crate) fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolution 
     Resolution::None
 }
 
-pub(crate) fn find_project_marker(start: &Path, stop_at: Option<&Path>) -> Option<ProjectMarker> {
+fn find_project_marker(start: &Path, stop_at: Option<&Path>) -> Option<ProjectMarker> {
     for dir in start.ancestors() {
         if matches!(stop_at, Some(s) if dir == s) {
             break;
