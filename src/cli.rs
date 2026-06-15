@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
-#[command(name = "claudectl", version, about = "Claude Code profile manager")]
+#[command(name = "claude-shim", version, about = "Claude Code profile manager")]
 pub(crate) struct Cli {
     #[command(subcommand)]
     pub(crate) command: Command,
@@ -29,7 +29,7 @@ mod tests {
 
     #[test]
     fn parses_init_zsh() {
-        let cli = Cli::try_parse_from(["claudectl", "init", "zsh"]).unwrap();
+        let cli = Cli::try_parse_from(["claude-shim", "init", "zsh"]).unwrap();
         assert!(matches!(
             cli.command,
             Command::Init {
@@ -40,17 +40,17 @@ mod tests {
 
     #[test]
     fn parses_current() {
-        let cli = Cli::try_parse_from(["claudectl", "current"]).unwrap();
+        let cli = Cli::try_parse_from(["claude-shim", "current"]).unwrap();
         assert!(matches!(cli.command, Command::Current));
     }
 
     #[test]
     fn rejects_unknown_subcommand() {
-        assert!(Cli::try_parse_from(["claudectl", "unknown"]).is_err());
+        assert!(Cli::try_parse_from(["claude-shim", "unknown"]).is_err());
     }
 
     #[test]
     fn rejects_unknown_init_target() {
-        assert!(Cli::try_parse_from(["claudectl", "init", "fish"]).is_err());
+        assert!(Cli::try_parse_from(["claude-shim", "init", "fish"]).is_err());
     }
 }

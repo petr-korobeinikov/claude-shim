@@ -50,7 +50,7 @@ fn try_run() -> Result<Infallible, ShimError> {
         }
         Resolution::Legacy => {}
         Resolution::None => {
-            let default_marker = base.config_dir().join("claudectl").join("default-profile");
+            let default_marker = base.config_dir().join("claude-shim").join("default-profile");
             return Err(ShimError::NoProfileInScope {
                 cwd,
                 home: base.home_dir().to_path_buf(),
@@ -94,15 +94,15 @@ impl fmt::Display for ShimError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BaseDirsUnavailable => {
-                write!(f, "claudectl: cannot resolve base directories")
+                write!(f, "claude-shim: cannot resolve base directories")
             }
             Self::CwdUnreadable(e) => {
-                write!(f, "claudectl: cannot read current directory: {e}")
+                write!(f, "claude-shim: cannot read current directory: {e}")
             }
-            Self::PathUnset => write!(f, "claudectl: PATH is unset"),
+            Self::PathUnset => write!(f, "claude-shim: PATH is unset"),
             Self::RealClaudeNotFound { self_dir } => write!(
                 f,
-                "claudectl: real `claude` not found on PATH (excluded shim dir: {}).\n\
+                "claude-shim: real `claude` not found on PATH (excluded shim dir: {}).\n\
                  Install Claude Code first.",
                 self_dir
                     .as_deref()
@@ -114,11 +114,11 @@ impl fmt::Display for ShimError {
                 default_marker,
             } => write!(
                 f,
-                "claudectl: refusing to run `claude` — no profile in scope.\n  \
-                 searched .claude/claudectl-profile from {} up to {}\n  \
+                "claude-shim: refusing to run `claude` — no profile in scope.\n  \
+                 searched .claude/claude-shim-profile from {} up to {}\n  \
                  and {}\n\n\
                  Pick a profile explicitly to avoid leaking credentials across contexts:\n  \
-                 echo <name> > .claude/claudectl-profile      # for this project\n  \
+                 echo <name> > .claude/claude-shim-profile      # for this project\n  \
                  echo <name> > {}    # as your default",
                 cwd.display(),
                 home.display(),
@@ -131,7 +131,7 @@ impl fmt::Display for ShimError {
                 expected,
             } => write!(
                 f,
-                "claudectl: refusing to run `claude` — profile '{name}' is configured but missing.\n  \
+                "claude-shim: refusing to run `claude` — profile '{name}' is configured but missing.\n  \
                  marker:   {}\n  \
                  expected: {}\n\n\
                  Create the profile or fix the marker:\n  \
@@ -141,7 +141,7 @@ impl fmt::Display for ShimError {
                 expected.display(),
             ),
             Self::ExecFailed { path, error } => {
-                write!(f, "claudectl: failed to exec {}: {error}", path.display())
+                write!(f, "claude-shim: failed to exec {}: {error}", path.display())
             }
         }
     }
@@ -170,20 +170,20 @@ fn is_executable(p: &Path) -> bool {
 
 pub(crate) fn ensure_shim() {
     let Some(base) = BaseDirs::new() else {
-        eprintln!("claudectl: cannot resolve base directories for shim");
+        eprintln!("claude-shim: cannot resolve base directories for shim");
         return;
     };
     let exe = match env::current_exe() {
         Ok(p) => p,
         Err(e) => {
-            eprintln!("claudectl: cannot determine current executable for shim: {e}");
+            eprintln!("claude-shim: cannot determine current executable for shim: {e}");
             return;
         }
     };
-    let shims = base.data_dir().join("claudectl").join("shims");
+    let shims = base.data_dir().join("claude-shim").join("shims");
     if let Err(e) = ensure_shim_at(&exe, &shims) {
         eprintln!(
-            "claudectl: failed to ensure shim symlink at {}: {e}",
+            "claude-shim: failed to ensure shim symlink at {}: {e}",
             shims.display()
         );
     }
@@ -251,14 +251,14 @@ mod tests {
         let msg = ShimError::NoProfileInScope {
             cwd: PathBuf::from("/work/proj"),
             home: PathBuf::from("/home/u"),
-            default_marker: PathBuf::from("/cfg/claudectl/default-profile"),
+            default_marker: PathBuf::from("/cfg/claude-shim/default-profile"),
         }
         .to_string();
         assert!(msg.contains("no profile in scope"), "got: {msg}");
         assert!(msg.contains("/work/proj"), "got: {msg}");
         assert!(msg.contains("/home/u"), "got: {msg}");
         assert!(
-            msg.contains("/cfg/claudectl/default-profile"),
+            msg.contains("/cfg/claude-shim/default-profile"),
             "got: {msg}"
         );
     }
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn ensure_shim_creates_symlink_in_missing_dir() {
         let root = TempDir::new().unwrap();
-        let exe = make_executable(root.path(), "claudectl");
+        let exe = make_executable(root.path(), "claude-shim");
         let shims = root.path().join("shims");
         assert!(!shims.exists());
 
@@ -362,7 +362,7 @@ mod tests {
     #[test]
     fn ensure_shim_is_idempotent() {
         let root = TempDir::new().unwrap();
-        let exe = make_executable(root.path(), "claudectl");
+        let exe = make_executable(root.path(), "claude-shim");
         let shims = root.path().join("shims");
 
         ensure_shim_at(&exe, &shims).unwrap();
@@ -374,8 +374,8 @@ mod tests {
     #[test]
     fn ensure_shim_replaces_stale_target() {
         let root = TempDir::new().unwrap();
-        let old_exe = make_executable(root.path(), "old-claudectl");
-        let new_exe = make_executable(root.path(), "new-claudectl");
+        let old_exe = make_executable(root.path(), "old-claude-shim");
+        let new_exe = make_executable(root.path(), "new-claude-shim");
         let shims = root.path().join("shims");
 
         ensure_shim_at(&old_exe, &shims).unwrap();

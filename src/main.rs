@@ -4,9 +4,9 @@ use std::process::ExitCode;
 
 fn main() -> ExitCode {
     if invoked_as_shim() {
-        return claudectl::shim::run();
+        return claude_shim::shim::run();
     }
-    claudectl::run()
+    claude_shim::run()
 }
 
 fn invoked_as_shim() -> bool {

@@ -49,7 +49,7 @@ pub(crate) fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolution 
             marker: m.path,
         });
     }
-    let default_marker = config_dir.join("claudectl").join("default-profile");
+    let default_marker = config_dir.join("claude-shim").join("default-profile");
     if let Some(name) = read_marker_file(&default_marker) {
         return Resolution::Profile(ProfileRef {
             name,
@@ -68,7 +68,7 @@ fn find_project_marker(start: &Path, stop_at: Option<&Path>) -> Option<ProjectMa
         if matches!(stop_at, Some(s) if dir == s) {
             break;
         }
-        let candidate = dir.join(".claude").join("claudectl-profile");
+        let candidate = dir.join(".claude").join("claude-shim-profile");
         if candidate.is_file()
             && let Some(name) = read_marker_file(&candidate)
         {
@@ -82,7 +82,7 @@ fn find_project_marker(start: &Path, stop_at: Option<&Path>) -> Option<ProjectMa
 }
 
 pub(crate) fn profile_dir(data_dir: &Path, name: &str) -> PathBuf {
-    data_dir.join("claudectl").join("profiles").join(name)
+    data_dir.join("claude-shim").join("profiles").join(name)
 }
 
 fn read_marker_file(path: &Path) -> Option<String> {
@@ -99,7 +99,7 @@ fn emit(name: &str, data_dir: &Path, source: ProfileSource) -> ExitCode {
     let loud = matches!(source, ProfileSource::Project);
     if !is_valid_profile_name(name) {
         if loud {
-            eprintln!("claudectl: invalid profile name '{name}'");
+            eprintln!("claude-shim: invalid profile name '{name}'");
             return ExitCode::from(2);
         }
         return ExitCode::SUCCESS;
@@ -110,7 +110,7 @@ fn emit(name: &str, data_dir: &Path, source: ProfileSource) -> ExitCode {
         ExitCode::SUCCESS
     } else if loud {
         eprintln!(
-            "claudectl: profile '{name}' is referenced but {} does not exist",
+            "claude-shim: profile '{name}' is referenced but {} does not exist",
             dir.display()
         );
         ExitCode::from(2)
@@ -166,7 +166,7 @@ mod tests {
     fn write_project_marker(dir: &Path, name: &str) -> PathBuf {
         let claude = dir.join(".claude");
         fs::create_dir_all(&claude).unwrap();
-        let marker = claude.join("claudectl-profile");
+        let marker = claude.join("claude-shim-profile");
         fs::write(&marker, name).unwrap();
         marker
     }
@@ -237,7 +237,7 @@ mod tests {
     }
 
     fn write_default_marker(config: &Path, name: &str) -> PathBuf {
-        let dir = config.join("claudectl");
+        let dir = config.join("claude-shim");
         fs::create_dir_all(&dir).unwrap();
         let marker = dir.join("default-profile");
         fs::write(&marker, name).unwrap();

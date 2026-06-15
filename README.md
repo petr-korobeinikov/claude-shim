@@ -1,4 +1,4 @@
-# claudectl
+# claude-shim
 
 Profile manager for Claude Code:
 swaps `CLAUDE_CONFIG_DIR` per project
@@ -14,12 +14,12 @@ and shows the active profile in the shell prompt.
 cargo build --release
 ```
 
-The binary lands at `./target/release/claudectl`.
-Substitute `<claudectl>` below with its absolute path on your machine.
+The binary lands at `./target/release/claude-shim`.
+Substitute `<claude-shim>` below with its absolute path on your machine.
 
 The same binary acts as the `claude` shim when invoked under that name.
-The shim symlink (`<data dir>/claudectl/shims/claude → <claudectl>`)
-is created automatically on every `claudectl` run —
+The shim symlink (`<data dir>/claude-shim/shims/claude → <claude-shim>`)
+is created automatically on every `claude-shim` run —
 no manual install step,
 no separate binary to copy.
 Make sure the real `claude` (npm, brew, nvm, etc.) is reachable on `PATH` —
@@ -28,13 +28,13 @@ skipping its own directory.
 
 ## Shell integration (zsh)
 
-Installs a precmd hook that exports `CLAUDECTL_ACTIVE_PROFILE` on every prompt.
+Installs a precmd hook that exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt.
 Required for both prompt-rendering paths below.
 
 Add to `~/.zshrc` and re-source:
 
 ```sh
-eval "$(<claudectl> init zsh)"
+eval "$(<claude-shim> init zsh)"
 ```
 
 ## Prompt indicator
@@ -44,7 +44,7 @@ Pick one of the styles below.
 ### Plain PS1
 
 ```sh
-PS1='%n@%m %~ ${CLAUDECTL_ACTIVE_PROFILE:+[$CLAUDECTL_ACTIVE_PROFILE] }%# '
+PS1='%n@%m %~ ${CLAUDE_SHIM_ACTIVE_PROFILE:+[$CLAUDE_SHIM_ACTIVE_PROFILE] }%# '
 ```
 
 ### oh-my-posh
@@ -71,7 +71,7 @@ Drops into any existing OMP theme as-is.
 ```yaml
 - type: text
   style: plain
-  template: "{{ if .Env.CLAUDECTL_ACTIVE_PROFILE }}[{{ .Env.CLAUDECTL_ACTIVE_PROFILE }}] {{ end }}"
+  template: "{{ if .Env.CLAUDE_SHIM_ACTIVE_PROFILE }}[{{ .Env.CLAUDE_SHIM_ACTIVE_PROFILE }}] {{ end }}"
 ```
 
 **TOML**
@@ -80,7 +80,7 @@ Drops into any existing OMP theme as-is.
 [[blocks.segments]]
 type = "text"
 style = "plain"
-template = "{{ if .Env.CLAUDECTL_ACTIVE_PROFILE }}[{{ .Env.CLAUDECTL_ACTIVE_PROFILE }}] {{ end }}"
+template = "{{ if .Env.CLAUDE_SHIM_ACTIVE_PROFILE }}[{{ .Env.CLAUDE_SHIM_ACTIVE_PROFILE }}] {{ end }}"
 ```
 
 **JSON**
@@ -89,7 +89,7 @@ template = "{{ if .Env.CLAUDECTL_ACTIVE_PROFILE }}[{{ .Env.CLAUDECTL_ACTIVE_PROF
 {
   "type": "text",
   "style": "plain",
-  "template": "{{ if .Env.CLAUDECTL_ACTIVE_PROFILE }}[{{ .Env.CLAUDECTL_ACTIVE_PROFILE }}] {{ end }}"
+  "template": "{{ if .Env.CLAUDE_SHIM_ACTIVE_PROFILE }}[{{ .Env.CLAUDE_SHIM_ACTIVE_PROFILE }}] {{ end }}"
 }
 ```
 
@@ -127,7 +127,7 @@ Segment:
   trailing_diamond: "<background,transparent>\ue0b0</>"
   foreground: p:pure_black
   background: p:claude
-  template: "{{ if .Env.CLAUDECTL_ACTIVE_PROFILE }} ✳ {{ .Env.CLAUDECTL_ACTIVE_PROFILE }} {{ end }}"
+  template: "{{ if .Env.CLAUDE_SHIM_ACTIVE_PROFILE }} ✳ {{ .Env.CLAUDE_SHIM_ACTIVE_PROFILE }} {{ end }}"
 ```
 
 **TOML**
@@ -148,7 +148,7 @@ leading_diamond = "<transparent,background>\ue0b0</>"
 trailing_diamond = "<background,transparent>\ue0b0</>"
 foreground = "p:pure_black"
 background = "p:claude"
-template = "{{ if .Env.CLAUDECTL_ACTIVE_PROFILE }} ✳ {{ .Env.CLAUDECTL_ACTIVE_PROFILE }} {{ end }}"
+template = "{{ if .Env.CLAUDE_SHIM_ACTIVE_PROFILE }} ✳ {{ .Env.CLAUDE_SHIM_ACTIVE_PROFILE }} {{ end }}"
 ```
 
 **JSON**
@@ -169,7 +169,7 @@ Segment:
   "trailing_diamond": "<background,transparent>\ue0b0</>",
   "foreground": "p:pure_black",
   "background": "p:claude",
-  "template": "{{ if .Env.CLAUDECTL_ACTIVE_PROFILE }} ✳ {{ .Env.CLAUDECTL_ACTIVE_PROFILE }} {{ end }}"
+  "template": "{{ if .Env.CLAUDE_SHIM_ACTIVE_PROFILE }} ✳ {{ .Env.CLAUDE_SHIM_ACTIVE_PROFILE }} {{ end }}"
 }
 ```
 
@@ -179,49 +179,49 @@ Until a `create` command lands, do it by hand:
 
 ```sh
 # macOS
-mkdir -p "$HOME/Library/Application Support/claudectl/profiles/<name>"
+mkdir -p "$HOME/Library/Application Support/claude-shim/profiles/<name>"
 # Linux
-mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/claudectl/profiles/<name>"
+mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/claude-shim/profiles/<name>"
 
 mkdir -p .claude
-echo <name> > .claude/claudectl-profile
+echo <name> > .claude/claude-shim-profile
 ```
 
-`claudectl current` in a directory with a valid profile prints the name and exits 0;
+`claude-shim current` in a directory with a valid profile prints the name and exits 0;
 without a profile, it prints nothing and exits 0;
 if the file points at a non-existent profile directory, it warns on stderr and exits 2.
 
 ### Default profile
 
-`.claude/claudectl-profile` is discovered by walking up from `$PWD` through the project tree —
+`.claude/claude-shim-profile` is discovered by walking up from `$PWD` through the project tree —
 the nearest match wins.
 The walk stops before `$HOME`,
-so a `~/.claude/claudectl-profile` is not picked up as a global default.
+so a `~/.claude/claude-shim-profile` is not picked up as a global default.
 
 When no project marker is found, the shim resolves the profile in this order:
 
-1. `<config dir>/claudectl/default-profile` — a text file containing one profile name.
+1. `<config dir>/claude-shim/default-profile` — a text file containing one profile name.
    Recommended way to set a global default.
    The config dir is platform-specific:
-   `~/Library/Application Support/claudectl/` on macOS,
-   `${XDG_CONFIG_HOME:-~/.config}/claudectl/` on Linux.
+   `~/Library/Application Support/claude-shim/` on macOS,
+   `${XDG_CONFIG_HOME:-~/.config}/claude-shim/` on Linux.
 2. `~/.claude/` itself — used as the profile if it exists,
-   for installs that pre-date claudectl.
+   for installs that pre-date claude-shim.
 3. Otherwise the shim refuses to run rather than silently fall back to an arbitrary profile.
 
 To switch from the legacy `~/.claude` setup to a named profile,
 do it by hand
-(a `claudectl migrate` command will land in a later release):
+(a `claude-shim migrate` command will land in a later release):
 
 ```sh
 # macOS
-mv ~/.claude "$HOME/Library/Application Support/claudectl/profiles/default"
-echo default > "$HOME/Library/Application Support/claudectl/default-profile"
+mv ~/.claude "$HOME/Library/Application Support/claude-shim/profiles/default"
+echo default > "$HOME/Library/Application Support/claude-shim/default-profile"
 
 # Linux
-mv ~/.claude "${XDG_DATA_HOME:-$HOME/.local/share}/claudectl/profiles/default"
-mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/claudectl"
-echo default > "${XDG_CONFIG_HOME:-$HOME/.config}/claudectl/default-profile"
+mv ~/.claude "${XDG_DATA_HOME:-$HOME/.local/share}/claude-shim/profiles/default"
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/claude-shim"
+echo default > "${XDG_CONFIG_HOME:-$HOME/.config}/claude-shim/default-profile"
 ```
 
 ## Development

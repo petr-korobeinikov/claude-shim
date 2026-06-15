@@ -1,5 +1,5 @@
 [package]
-name = "claudectl"
+name = "claude-shim"
 version = "0.1.0"
 edition = "2024"
 description = "Profile manager for Claude Code"
