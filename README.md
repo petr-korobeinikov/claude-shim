@@ -184,17 +184,18 @@ claude-shim profile new personal --default
 claude-shim profile new work
 claude-shim profile new client-acme
 
-# Point a single project at a profile:
-mkdir -p .claude
-echo <name> > .claude/claude-shim-profile
+# Point a single project at a profile (writes .claude/claude-shim-profile):
+cd ~/Workspace/my-project
+claude-shim profile use work
 
-# Or, for a whole workspace of projects,
-# put one marker in its root:
-echo <name> > .claude-shim-profile
+# Or, for a whole workspace of projects (writes .claude-shim-profile in the root):
+cd ~/Workspace/work
+claude-shim profile use work --workspace
 ```
 
 Claude Code initializes the profile contents (settings, credentials, history) on first launch.
-`claude-shim profile new` refuses to overwrite an existing profile.
+Both `profile new` and `profile use` fail loud rather than overwrite existing state —
+remove the old profile directory or marker file before retrying.
 
 `claude-shim current` in a directory with a valid profile prints the name and exits 0;
 without a profile, it prints nothing and exits 0;

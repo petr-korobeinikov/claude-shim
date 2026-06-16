@@ -39,6 +39,17 @@ pub(crate) enum NewError {
     Io(PathBuf, io::Error),
 }
 
+pub(crate) struct Applied {
+    pub marker_path: PathBuf,
+}
+
+pub(crate) enum UseError {
+    InvalidName,
+    ProfileNotFound(PathBuf),
+    MarkerAlreadyExists(PathBuf),
+    Io(PathBuf, io::Error),
+}
+
 pub(crate) fn current() -> ExitCode {
     let Ok(cwd) = env::current_dir() else {
         return ExitCode::SUCCESS;
@@ -82,6 +93,76 @@ pub(crate) fn new(name: &str, set_default: bool) -> ExitCode {
             ExitCode::from(2)
         }
     }
+}
+
+pub(crate) fn use_profile(name: &str, workspace: bool) -> ExitCode {
+    let Ok(cwd) = env::current_dir() else {
+        eprintln!("claude-shim: unable to read current directory");
+        return ExitCode::from(2);
+    };
+    let Some(base) = BaseDirs::new() else {
+        eprintln!("claude-shim: unable to determine base directories");
+        return ExitCode::from(2);
+    };
+    match apply(&cwd, base.data_dir(), name, workspace) {
+        Ok(a) => {
+            println!("set profile '{name}' at {}", a.marker_path.display());
+            ExitCode::SUCCESS
+        }
+        Err(UseError::InvalidName) => {
+            eprintln!("claude-shim: invalid profile name '{name}'");
+            ExitCode::from(2)
+        }
+        Err(UseError::ProfileNotFound(p)) => {
+            eprintln!(
+                "claude-shim: profile '{name}' does not exist at {}",
+                p.display()
+            );
+            eprintln!("hint: create it first with `claude-shim profile new {name}`");
+            ExitCode::from(2)
+        }
+        Err(UseError::MarkerAlreadyExists(p)) => {
+            eprintln!(
+                "claude-shim: marker already exists at {} — remove it first to switch profiles",
+                p.display()
+            );
+            ExitCode::from(2)
+        }
+        Err(UseError::Io(path, e)) => {
+            eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            ExitCode::from(2)
+        }
+    }
+}
+
+pub(crate) fn apply(
+    cwd: &Path,
+    data_dir: &Path,
+    name: &str,
+    workspace: bool,
+) -> Result<Applied, UseError> {
+    if !is_valid_profile_name(name) {
+        return Err(UseError::InvalidName);
+    }
+    let profile = profile_dir(data_dir, name);
+    if !profile.is_dir() {
+        return Err(UseError::ProfileNotFound(profile));
+    }
+    let marker = if workspace {
+        cwd.join(".claude-shim-profile")
+    } else {
+        cwd.join(".claude").join("claude-shim-profile")
+    };
+    if marker.exists() {
+        return Err(UseError::MarkerAlreadyExists(marker));
+    }
+    if let Some(parent) = marker.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| UseError::Io(parent.to_path_buf(), e))?;
+    }
+    std::fs::write(&marker, format!("{name}\n")).map_err(|e| UseError::Io(marker.clone(), e))?;
+    Ok(Applied {
+        marker_path: marker,
+    })
 }
 
 pub(crate) fn create(
@@ -525,5 +606,97 @@ mod tests {
 
         let _ = create(data.path(), config.path(), "personal", true);
         assert!(!config.path().join("claude-shim").exists());
+    }
+
+    fn make_profile(data: &Path, name: &str) -> PathBuf {
+        let dir = profile_dir(data, name);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn apply_writes_project_marker_by_default() {
+        let cwd = TempDir::new().unwrap();
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "work");
+
+        let a = apply(cwd.path(), data.path(), "work", false).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
+        assert_eq!(a.marker_path, cwd.path().join(".claude").join("claude-shim-profile"));
+        assert_eq!(fs::read_to_string(&a.marker_path).unwrap(), "work\n");
+    }
+
+    #[test]
+    fn apply_creates_dot_claude_when_missing() {
+        let cwd = TempDir::new().unwrap();
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "work");
+        assert!(!cwd.path().join(".claude").exists());
+
+        apply(cwd.path(), data.path(), "work", false).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
+        assert!(cwd.path().join(".claude").is_dir());
+    }
+
+    #[test]
+    fn apply_writes_workspace_marker_with_flag() {
+        let cwd = TempDir::new().unwrap();
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "work");
+
+        let a = apply(cwd.path(), data.path(), "work", true).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
+        assert_eq!(a.marker_path, cwd.path().join(".claude-shim-profile"));
+        assert_eq!(fs::read_to_string(&a.marker_path).unwrap(), "work\n");
+        assert!(!cwd.path().join(".claude").exists());
+    }
+
+    #[test]
+    fn apply_rejects_invalid_name() {
+        let cwd = TempDir::new().unwrap();
+        let data = TempDir::new().unwrap();
+        assert!(matches!(
+            apply(cwd.path(), data.path(), "a/b", false),
+            Err(UseError::InvalidName)
+        ));
+    }
+
+    #[test]
+    fn apply_fails_when_profile_missing() {
+        let cwd = TempDir::new().unwrap();
+        let data = TempDir::new().unwrap();
+        match apply(cwd.path(), data.path(), "ghost", false) {
+            Err(UseError::ProfileNotFound(p)) => assert_eq!(p, profile_dir(data.path(), "ghost")),
+            _ => panic!("expected ProfileNotFound"),
+        }
+    }
+
+    #[test]
+    fn apply_fails_when_project_marker_already_exists() {
+        let cwd = TempDir::new().unwrap();
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "work");
+        let existing = write_project_marker(cwd.path(), "old");
+
+        match apply(cwd.path(), data.path(), "work", false) {
+            Err(UseError::MarkerAlreadyExists(p)) => assert_eq!(p, existing),
+            _ => panic!("expected MarkerAlreadyExists"),
+        }
+    }
+
+    #[test]
+    fn apply_fails_when_workspace_marker_already_exists() {
+        let cwd = TempDir::new().unwrap();
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "work");
+        let existing = write_workspace_marker(cwd.path(), "old");
+
+        match apply(cwd.path(), data.path(), "work", true) {
+            Err(UseError::MarkerAlreadyExists(p)) => assert_eq!(p, existing),
+            _ => panic!("expected MarkerAlreadyExists"),
+        }
     }
 }

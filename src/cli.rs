@@ -33,6 +33,14 @@ pub(crate) enum ProfileAction {
         #[arg(long)]
         default: bool,
     },
+    /// Bind the current directory to a profile via a marker file
+    Use {
+        /// Profile name (must already exist)
+        name: String,
+        /// Write a workspace-wide marker (.claude-shim-profile) instead of the per-project one
+        #[arg(long)]
+        workspace: bool,
+    },
 }
 
 #[derive(Copy, Clone, ValueEnum)]
@@ -104,5 +112,39 @@ mod tests {
     #[test]
     fn rejects_profile_new_without_name() {
         assert!(Cli::try_parse_from(["claude-shim", "profile", "new"]).is_err());
+    }
+
+    #[test]
+    fn parses_profile_use() {
+        let cli = Cli::try_parse_from(["claude-shim", "profile", "use", "work"]).unwrap();
+        match cli.command {
+            Command::Profile {
+                action: ProfileAction::Use { name, workspace },
+            } => {
+                assert_eq!(name, "work");
+                assert!(!workspace);
+            }
+            _ => panic!("expected Profile::Use"),
+        }
+    }
+
+    #[test]
+    fn parses_profile_use_with_workspace_flag() {
+        let cli =
+            Cli::try_parse_from(["claude-shim", "profile", "use", "work", "--workspace"]).unwrap();
+        match cli.command {
+            Command::Profile {
+                action: ProfileAction::Use { name, workspace },
+            } => {
+                assert_eq!(name, "work");
+                assert!(workspace);
+            }
+            _ => panic!("expected Profile::Use"),
+        }
+    }
+
+    #[test]
+    fn rejects_profile_use_without_name() {
+        assert!(Cli::try_parse_from(["claude-shim", "profile", "use"]).is_err());
     }
 }

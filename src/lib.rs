@@ -23,5 +23,8 @@ pub fn run() -> ExitCode {
         Command::Profile {
             action: ProfileAction::New { name, default },
         } => profile::new(&name, default),
+        Command::Profile {
+            action: ProfileAction::Use { name, workspace },
+        } => profile::use_profile(&name, workspace),
     }
 }
