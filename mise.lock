@@ -4,6 +4,34 @@
 version = "1.1.0"
 backend = "aqua:gittower/git-flow-next"
 
+[tools."aqua:gittower/git-flow-next"."platforms.linux-arm64"]
+checksum = "sha256:f26e631e6fd6739006aa5a077b250a2a6c1770488832cd8bb31ea9705891c84c"
+url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-flow-next-v1.1.0-linux-arm64.tar.gz"
+
+[tools."aqua:gittower/git-flow-next"."platforms.linux-arm64-musl"]
+checksum = "sha256:f26e631e6fd6739006aa5a077b250a2a6c1770488832cd8bb31ea9705891c84c"
+url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-flow-next-v1.1.0-linux-arm64.tar.gz"
+
+[tools."aqua:gittower/git-flow-next"."platforms.linux-x64"]
+checksum = "sha256:98a68e6ce525595dc94e3e3ac39d14f095edaad4de8a42513a294c50d9e190df"
+url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-flow-next-v1.1.0-linux-amd64.tar.gz"
+
+[tools."aqua:gittower/git-flow-next"."platforms.linux-x64-musl"]
+checksum = "sha256:98a68e6ce525595dc94e3e3ac39d14f095edaad4de8a42513a294c50d9e190df"
+url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-flow-next-v1.1.0-linux-amd64.tar.gz"
+
+[tools."aqua:gittower/git-flow-next"."platforms.macos-arm64"]
+checksum = "sha256:5a875c5679fd8b0f5fbfa6911817d532b08d88a516ebb6c2319fd7bd0868074d"
+url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-flow-next-v1.1.0-darwin-arm64.tar.gz"
+
+[tools."aqua:gittower/git-flow-next"."platforms.macos-x64"]
+checksum = "sha256:1268bec9c499a488254d585bde6754cd4ff8b520cb4c6827f2abbf4a00ba317d"
+url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-flow-next-v1.1.0-darwin-amd64.tar.gz"
+
+[tools."aqua:gittower/git-flow-next"."platforms.windows-x64"]
+checksum = "sha256:efc99c155c2ffd8259b2abbad69551928cbcfecf00c8b5031a12a0c67b3edb25"
+url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-flow-next-v1.1.0-windows-amd64.zip"
+
 [[tools.rust]]
 version = "1.95.0"
 backend = "core:rust"
