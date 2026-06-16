@@ -14,8 +14,6 @@ pub(crate) enum Command {
         #[arg(value_enum)]
         target: Target,
     },
-    /// Resolve active profile (used by the precmd hook)
-    Current,
     /// Manage profiles
     Profile {
         #[command(subcommand)]
@@ -25,6 +23,8 @@ pub(crate) enum Command {
 
 #[derive(Subcommand)]
 pub(crate) enum ProfileAction {
+    /// Resolve active profile (used by the precmd hook)
+    Current,
     /// Create a new profile directory
     New {
         /// Profile name
@@ -64,9 +64,14 @@ mod tests {
     }
 
     #[test]
-    fn parses_current() {
-        let cli = Cli::try_parse_from(["claude-shim", "current"]).unwrap();
-        assert!(matches!(cli.command, Command::Current));
+    fn parses_profile_current() {
+        let cli = Cli::try_parse_from(["claude-shim", "profile", "current"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Profile {
+                action: ProfileAction::Current,
+            }
+        ));
     }
 
     #[test]

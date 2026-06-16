@@ -54,10 +54,10 @@ _claude_shim_precmd() {
     _claude_shim_ensure_path
     local out rc
     if [[ "${_CLAUDE_SHIM_LAST_WARN_PWD-}" == "$PWD" ]]; then
-        out=$(__CLAUDE_SHIM_BIN__ current 2>/dev/null)
+        out=$(__CLAUDE_SHIM_BIN__ profile current 2>/dev/null)
         rc=$?
     else
-        out=$(__CLAUDE_SHIM_BIN__ current)
+        out=$(__CLAUDE_SHIM_BIN__ profile current)
         rc=$?
     fi
     if (( rc == 0 )); then

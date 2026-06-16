@@ -19,7 +19,9 @@ pub fn run() -> ExitCode {
             print!("{}", init::zsh());
             ExitCode::SUCCESS
         }
-        Command::Current => profile::current(),
+        Command::Profile {
+            action: ProfileAction::Current,
+        } => profile::current(),
         Command::Profile {
             action: ProfileAction::New { name, default },
         } => profile::new(&name, default),
