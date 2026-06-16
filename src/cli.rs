@@ -41,6 +41,8 @@ pub(crate) enum ProfileAction {
         #[arg(long)]
         workspace: bool,
     },
+    /// List all profiles, marking default and the one active in the current directory
+    List,
 }
 
 #[derive(Copy, Clone, ValueEnum)]
@@ -151,5 +153,16 @@ mod tests {
     #[test]
     fn rejects_profile_use_without_name() {
         assert!(Cli::try_parse_from(["claude-shim", "profile", "use"]).is_err());
+    }
+
+    #[test]
+    fn parses_profile_list() {
+        let cli = Cli::try_parse_from(["claude-shim", "profile", "list"]).unwrap();
+        assert!(matches!(
+            cli.command,
+            Command::Profile {
+                action: ProfileAction::List,
+            }
+        ));
     }
 }

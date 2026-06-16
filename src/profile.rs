@@ -50,6 +50,16 @@ pub(crate) enum UseError {
     Io(PathBuf, io::Error),
 }
 
+pub(crate) struct ListedProfile {
+    pub name: String,
+    pub is_default: bool,
+    pub is_active: bool,
+}
+
+pub(crate) enum ListError {
+    Io(PathBuf, io::Error),
+}
+
 pub(crate) fn current() -> ExitCode {
     let Ok(cwd) = env::current_dir() else {
         return ExitCode::SUCCESS;
@@ -135,6 +145,50 @@ pub(crate) fn use_profile(name: &str, workspace: bool) -> ExitCode {
     }
 }
 
+pub(crate) fn list() -> ExitCode {
+    let Some(base) = BaseDirs::new() else {
+        eprintln!("claude-shim: unable to determine base directories");
+        return ExitCode::from(2);
+    };
+    let default_name =
+        read_marker_file(&base.config_dir().join("claude-shim").join("default-profile"));
+    let active_name = env::current_dir().ok().and_then(|cwd| {
+        match resolve(&cwd, base.home_dir(), base.config_dir()) {
+            Resolution::Profile(p) if profile_dir(base.data_dir(), &p.name).is_dir() => {
+                Some(p.name)
+            }
+            _ => None,
+        }
+    });
+    match collect(
+        base.data_dir(),
+        default_name.as_deref(),
+        active_name.as_deref(),
+    ) {
+        Ok(items) => {
+            for p in items {
+                let mut tags: Vec<&str> = Vec::new();
+                if p.is_default {
+                    tags.push("default");
+                }
+                if p.is_active {
+                    tags.push("active");
+                }
+                if tags.is_empty() {
+                    println!("{}", p.name);
+                } else {
+                    println!("{} ({})", p.name, tags.join(", "));
+                }
+            }
+            ExitCode::SUCCESS
+        }
+        Err(ListError::Io(path, e)) => {
+            eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            ExitCode::from(2)
+        }
+    }
+}
+
 pub(crate) fn apply(
     cwd: &Path,
     data_dir: &Path,
@@ -195,6 +249,43 @@ pub(crate) fn create(
         profile_dir: dir,
         default_marker,
     })
+}
+
+pub(crate) fn collect(
+    data_dir: &Path,
+    default_name: Option<&str>,
+    active_name: Option<&str>,
+) -> Result<Vec<ListedProfile>, ListError> {
+    let root = data_dir.join("claude-shim").join("profiles");
+    let entries = match std::fs::read_dir(&root) {
+        Ok(e) => e,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(ListError::Io(root, e)),
+    };
+    let mut names: Vec<String> = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|e| ListError::Io(root.clone(), e))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| ListError::Io(entry.path(), e))?;
+        if !file_type.is_dir() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !is_valid_profile_name(&name) {
+            continue;
+        }
+        names.push(name);
+    }
+    names.sort();
+    Ok(names
+        .into_iter()
+        .map(|name| ListedProfile {
+            is_default: default_name == Some(name.as_str()),
+            is_active: active_name == Some(name.as_str()),
+            name,
+        })
+        .collect())
 }
 
 pub(crate) fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolution {
@@ -698,5 +789,77 @@ mod tests {
             Err(UseError::MarkerAlreadyExists(p)) => assert_eq!(p, existing),
             _ => panic!("expected MarkerAlreadyExists"),
         }
+    }
+
+    #[test]
+    fn collect_returns_empty_when_root_missing() {
+        let data = TempDir::new().unwrap();
+        let got = collect(data.path(), None, None).unwrap_or_else(|_| panic!("expected Ok"));
+        assert!(got.is_empty());
+    }
+
+    #[test]
+    fn collect_returns_sorted_dir_names_only() {
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "personal");
+        make_profile(data.path(), "client-acme");
+        make_profile(data.path(), "default");
+        let root = data.path().join("claude-shim").join("profiles");
+        fs::write(root.join("README"), "not a profile").unwrap();
+
+        let got = collect(data.path(), None, None).unwrap_or_else(|_| panic!("expected Ok"));
+        let names: Vec<_> = got.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, vec!["client-acme", "default", "personal"]);
+        assert!(got.iter().all(|p| !p.is_default && !p.is_active));
+    }
+
+    #[test]
+    fn collect_marks_default_only() {
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "personal");
+        make_profile(data.path(), "work");
+
+        let got = collect(data.path(), Some("work"), None).unwrap_or_else(|_| panic!("expected Ok"));
+        let work = got.iter().find(|p| p.name == "work").unwrap();
+        let personal = got.iter().find(|p| p.name == "personal").unwrap();
+        assert!(work.is_default && !work.is_active);
+        assert!(!personal.is_default && !personal.is_active);
+    }
+
+    #[test]
+    fn collect_marks_active_only() {
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "personal");
+        make_profile(data.path(), "work");
+
+        let got =
+            collect(data.path(), None, Some("personal")).unwrap_or_else(|_| panic!("expected Ok"));
+        let personal = got.iter().find(|p| p.name == "personal").unwrap();
+        let work = got.iter().find(|p| p.name == "work").unwrap();
+        assert!(!personal.is_default && personal.is_active);
+        assert!(!work.is_default && !work.is_active);
+    }
+
+    #[test]
+    fn collect_marks_default_and_active_on_same_profile() {
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "solo");
+
+        let got = collect(data.path(), Some("solo"), Some("solo"))
+            .unwrap_or_else(|_| panic!("expected Ok"));
+        assert_eq!(got.len(), 1);
+        assert!(got[0].is_default && got[0].is_active);
+    }
+
+    #[test]
+    fn collect_ignores_marker_names_that_point_at_nothing() {
+        let data = TempDir::new().unwrap();
+        make_profile(data.path(), "personal");
+
+        let got = collect(data.path(), Some("missing"), Some("ghost"))
+            .unwrap_or_else(|_| panic!("expected Ok"));
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].name, "personal");
+        assert!(!got[0].is_default && !got[0].is_active);
     }
 }

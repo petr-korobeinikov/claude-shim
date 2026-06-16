@@ -201,6 +201,17 @@ remove the old profile directory or marker file before retrying.
 without a profile, it prints nothing and exits 0;
 if the file points at a non-existent profile directory, it warns on stderr and exits 2.
 
+`claude-shim profile list` prints every profile directory one per line,
+appending `(default)` for the global default
+and `(active)` for the one that would resolve in the current directory:
+
+```sh
+$ claude-shim profile list
+client-acme
+personal (default, active)
+work
+```
+
 ### Default profile
 
 Markers are discovered by walking up from `$PWD` through the project tree —
