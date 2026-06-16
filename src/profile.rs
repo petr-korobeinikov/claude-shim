@@ -68,13 +68,22 @@ fn find_project_marker(start: &Path, stop_at: Option<&Path>) -> Option<ProjectMa
         if matches!(stop_at, Some(s) if dir == s) {
             break;
         }
-        let candidate = dir.join(".claude").join("claude-shim-profile");
-        if candidate.is_file()
-            && let Some(name) = read_marker_file(&candidate)
+        let project = dir.join(".claude").join("claude-shim-profile");
+        if project.is_file()
+            && let Some(name) = read_marker_file(&project)
         {
             return Some(ProjectMarker {
                 name,
-                path: candidate,
+                path: project,
+            });
+        }
+        let workspace = dir.join(".claude-shim-profile");
+        if workspace.is_file()
+            && let Some(name) = read_marker_file(&workspace)
+        {
+            return Some(ProjectMarker {
+                name,
+                path: workspace,
             });
         }
     }
@@ -229,6 +238,65 @@ mod tests {
     fn find_project_marker_bounded_stops_before_bound() {
         let dir = TempDir::new().unwrap();
         write_project_marker(dir.path(), "outside-bound");
+        let nested = dir.path().join("inner");
+        fs::create_dir_all(&nested).unwrap();
+
+        assert!(find_project_marker(&nested, Some(dir.path())).is_none());
+        assert!(find_project_marker(&nested, None).is_some());
+    }
+
+    fn write_workspace_marker(dir: &Path, name: &str) -> PathBuf {
+        let marker = dir.join(".claude-shim-profile");
+        fs::write(&marker, name).unwrap();
+        marker
+    }
+
+    #[test]
+    fn find_project_marker_reads_workspace_marker() {
+        let dir = TempDir::new().unwrap();
+        let marker = write_workspace_marker(dir.path(), "ws");
+        let got = find_project_marker(dir.path(), None).unwrap();
+        assert_eq!(got.name, "ws");
+        assert_eq!(got.path, marker);
+    }
+
+    #[test]
+    fn find_project_marker_workspace_walks_up_from_nested_dir() {
+        let dir = TempDir::new().unwrap();
+        let outer = write_workspace_marker(dir.path(), "ws");
+        let nested = dir.path().join("proj/sub");
+        fs::create_dir_all(&nested).unwrap();
+        let got = find_project_marker(&nested, None).unwrap();
+        assert_eq!(got.name, "ws");
+        assert_eq!(got.path, outer);
+    }
+
+    #[test]
+    fn find_project_marker_project_wins_over_workspace_at_same_dir() {
+        let dir = TempDir::new().unwrap();
+        let proj = write_project_marker(dir.path(), "proj");
+        write_workspace_marker(dir.path(), "ws");
+        let got = find_project_marker(dir.path(), None).unwrap();
+        assert_eq!(got.name, "proj");
+        assert_eq!(got.path, proj);
+    }
+
+    #[test]
+    fn find_project_marker_nearest_workspace_wins_over_higher_project() {
+        let dir = TempDir::new().unwrap();
+        write_project_marker(dir.path(), "outer");
+        let nested = dir.path().join("inner");
+        fs::create_dir_all(&nested).unwrap();
+        let near = write_workspace_marker(&nested, "inner-ws");
+        let got = find_project_marker(&nested, None).unwrap();
+        assert_eq!(got.name, "inner-ws");
+        assert_eq!(got.path, near);
+    }
+
+    #[test]
+    fn find_project_marker_workspace_bounded_stops_before_bound() {
+        let dir = TempDir::new().unwrap();
+        write_workspace_marker(dir.path(), "outside-bound");
         let nested = dir.path().join("inner");
         fs::create_dir_all(&nested).unwrap();
 

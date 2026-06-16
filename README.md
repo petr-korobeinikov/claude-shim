@@ -185,6 +185,10 @@ mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/claude-shim/profiles/<name>"
 
 mkdir -p .claude
 echo <name> > .claude/claude-shim-profile
+
+# or, for a whole workspace of projects,
+# put one marker in its root:
+echo <name> > .claude-shim-profile
 ```
 
 `claude-shim current` in a directory with a valid profile prints the name and exits 0;
@@ -193,10 +197,13 @@ if the file points at a non-existent profile directory, it warns on stderr and e
 
 ### Default profile
 
-`.claude/claude-shim-profile` is discovered by walking up from `$PWD` through the project tree —
+Markers are discovered by walking up from `$PWD` through the project tree —
 the nearest match wins.
+On each ancestor directory,
+`.claude/claude-shim-profile` (per-project) is checked first
+and takes priority over `.claude-shim-profile` (workspace-wide) at the same level.
 The walk stops before `$HOME`,
-so a `~/.claude/claude-shim-profile` is not picked up as a global default.
+so a marker placed directly in `$HOME` is not picked up as a global default.
 
 When no project marker is found, the shim resolves the profile in this order:
 
