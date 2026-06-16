@@ -7,7 +7,7 @@ use std::process::ExitCode;
 
 use clap::Parser;
 
-use cli::{Cli, Command, Target};
+use cli::{Cli, Command, ProfileAction, Target};
 
 #[must_use]
 pub fn run() -> ExitCode {
@@ -20,5 +20,8 @@ pub fn run() -> ExitCode {
             ExitCode::SUCCESS
         }
         Command::Current => profile::current(),
+        Command::Profile {
+            action: ProfileAction::New { name, default },
+        } => profile::new(&name, default),
     }
 }

@@ -175,21 +175,26 @@ Segment:
 
 ## Creating a profile
 
-Until a `create` command lands, do it by hand:
+Create the profile directory,
+then point projects at it via a marker file:
 
 ```sh
-# macOS
-mkdir -p "$HOME/Library/Application Support/claude-shim/profiles/<name>"
-# Linux
-mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/claude-shim/profiles/<name>"
+# Create the profile (--default also sets the global default).
+claude-shim profile new personal --default
+claude-shim profile new work
+claude-shim profile new client-acme
 
+# Point a single project at a profile:
 mkdir -p .claude
 echo <name> > .claude/claude-shim-profile
 
-# or, for a whole workspace of projects,
+# Or, for a whole workspace of projects,
 # put one marker in its root:
 echo <name> > .claude-shim-profile
 ```
+
+Claude Code initializes the profile contents (settings, credentials, history) on first launch.
+`claude-shim profile new` refuses to overwrite an existing profile.
 
 `claude-shim current` in a directory with a valid profile prints the name and exits 0;
 without a profile, it prints nothing and exits 0;

@@ -1,4 +1,5 @@
 use std::env;
+use std::io;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -27,6 +28,17 @@ struct ProjectMarker {
     path: PathBuf,
 }
 
+pub(crate) struct Created {
+    pub profile_dir: PathBuf,
+    pub default_marker: Option<PathBuf>,
+}
+
+pub(crate) enum NewError {
+    InvalidName,
+    AlreadyExists(PathBuf),
+    Io(PathBuf, io::Error),
+}
+
 pub(crate) fn current() -> ExitCode {
     let Ok(cwd) = env::current_dir() else {
         return ExitCode::SUCCESS;
@@ -39,6 +51,69 @@ pub(crate) fn current() -> ExitCode {
         Resolution::Profile(p) => emit(&p.name, base.data_dir(), p.source),
         Resolution::Legacy | Resolution::None => ExitCode::SUCCESS,
     }
+}
+
+pub(crate) fn new(name: &str, set_default: bool) -> ExitCode {
+    let Some(base) = BaseDirs::new() else {
+        eprintln!("claude-shim: unable to determine base directories");
+        return ExitCode::from(2);
+    };
+    match create(base.data_dir(), base.config_dir(), name, set_default) {
+        Ok(c) => {
+            println!("created profile '{name}' at {}", c.profile_dir.display());
+            if let Some(marker) = c.default_marker {
+                println!("set '{name}' as the global default ({})", marker.display());
+            }
+            ExitCode::SUCCESS
+        }
+        Err(NewError::InvalidName) => {
+            eprintln!("claude-shim: invalid profile name '{name}'");
+            ExitCode::from(2)
+        }
+        Err(NewError::AlreadyExists(dir)) => {
+            eprintln!(
+                "claude-shim: profile '{name}' already exists at {}",
+                dir.display()
+            );
+            ExitCode::from(2)
+        }
+        Err(NewError::Io(path, e)) => {
+            eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            ExitCode::from(2)
+        }
+    }
+}
+
+pub(crate) fn create(
+    data_dir: &Path,
+    config_dir: &Path,
+    name: &str,
+    set_default: bool,
+) -> Result<Created, NewError> {
+    if !is_valid_profile_name(name) {
+        return Err(NewError::InvalidName);
+    }
+    let dir = profile_dir(data_dir, name);
+    if dir.exists() {
+        return Err(NewError::AlreadyExists(dir));
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| NewError::Io(dir.clone(), e))?;
+    let default_marker = if set_default {
+        let marker = config_dir.join("claude-shim").join("default-profile");
+        if let Some(parent) = marker.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| NewError::Io(parent.to_path_buf(), e))?;
+        }
+        std::fs::write(&marker, format!("{name}\n"))
+            .map_err(|e| NewError::Io(marker.clone(), e))?;
+        Some(marker)
+    } else {
+        None
+    };
+    Ok(Created {
+        profile_dir: dir,
+        default_marker,
+    })
 }
 
 pub(crate) fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolution {
@@ -392,5 +467,63 @@ mod tests {
         let p = dir.path().join("marker");
         fs::write(&p, "").unwrap();
         assert!(read_marker_file(&p).is_none());
+    }
+
+    #[test]
+    fn create_makes_profile_directory() {
+        let data = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let c = create(data.path(), config.path(), "personal", false).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
+        assert!(c.profile_dir.is_dir());
+        assert_eq!(c.profile_dir, profile_dir(data.path(), "personal"));
+        assert!(c.default_marker.is_none());
+        assert!(!config.path().join("claude-shim").exists());
+    }
+
+    #[test]
+    fn create_with_default_writes_default_marker() {
+        let data = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let c = create(data.path(), config.path(), "personal", true).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
+        let marker = c.default_marker.expect("default marker expected");
+        assert_eq!(marker, config.path().join("claude-shim").join("default-profile"));
+        assert_eq!(fs::read_to_string(&marker).unwrap(), "personal\n");
+    }
+
+    #[test]
+    fn create_rejects_invalid_name() {
+        let data = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        assert!(matches!(
+            create(data.path(), config.path(), "a/b", false),
+            Err(NewError::InvalidName)
+        ));
+    }
+
+    #[test]
+    fn create_fails_when_profile_already_exists() {
+        let data = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let existing = profile_dir(data.path(), "personal");
+        fs::create_dir_all(&existing).unwrap();
+
+        match create(data.path(), config.path(), "personal", false) {
+            Err(NewError::AlreadyExists(p)) => assert_eq!(p, existing),
+            _ => panic!("expected AlreadyExists"),
+        }
+    }
+
+    #[test]
+    fn create_does_not_touch_default_when_profile_exists() {
+        let data = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        fs::create_dir_all(profile_dir(data.path(), "personal")).unwrap();
+
+        let _ = create(data.path(), config.path(), "personal", true);
+        assert!(!config.path().join("claude-shim").exists());
     }
 }

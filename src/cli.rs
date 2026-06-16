@@ -16,6 +16,23 @@ pub(crate) enum Command {
     },
     /// Resolve active profile (used by the precmd hook)
     Current,
+    /// Manage profiles
+    Profile {
+        #[command(subcommand)]
+        action: ProfileAction,
+    },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum ProfileAction {
+    /// Create a new profile directory
+    New {
+        /// Profile name
+        name: String,
+        /// Also set this profile as the global default
+        #[arg(long)]
+        default: bool,
+    },
 }
 
 #[derive(Copy, Clone, ValueEnum)]
@@ -52,5 +69,40 @@ mod tests {
     #[test]
     fn rejects_unknown_init_target() {
         assert!(Cli::try_parse_from(["claude-shim", "init", "fish"]).is_err());
+    }
+
+    #[test]
+    fn parses_profile_new() {
+        let cli = Cli::try_parse_from(["claude-shim", "profile", "new", "personal"]).unwrap();
+        match cli.command {
+            Command::Profile {
+                action: ProfileAction::New { name, default },
+            } => {
+                assert_eq!(name, "personal");
+                assert!(!default);
+            }
+            _ => panic!("expected Profile::New"),
+        }
+    }
+
+    #[test]
+    fn parses_profile_new_with_default_flag() {
+        let cli =
+            Cli::try_parse_from(["claude-shim", "profile", "new", "personal", "--default"])
+                .unwrap();
+        match cli.command {
+            Command::Profile {
+                action: ProfileAction::New { name, default },
+            } => {
+                assert_eq!(name, "personal");
+                assert!(default);
+            }
+            _ => panic!("expected Profile::New"),
+        }
+    }
+
+    #[test]
+    fn rejects_profile_new_without_name() {
+        assert!(Cli::try_parse_from(["claude-shim", "profile", "new"]).is_err());
     }
 }
