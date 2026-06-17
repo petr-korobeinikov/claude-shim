@@ -1,6 +1,6 @@
 [package]
 name = "claude-shim"
-version = "0.1.0"
+version = "2026.6.0-alpha.1"
 edition = "2024"
 description = "Profile manager for Claude Code"
 license = "MIT"

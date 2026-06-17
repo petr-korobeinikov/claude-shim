@@ -1,0 +1,49 @@
+# git-cliff configuration — tuned for this project.
+# Commit style: Conventional Commits, single-line "type: description".
+# Active types: feat / fix / refactor / docs / chore (others mapped for forward-compat).
+# Docs: https://git-cliff.org/docs/configuration
+
+[changelog]
+# Release notes only — the workflow calls `git-cliff --latest --strip header`,
+# so no changelog-wide header here.
+header = ""
+body = """
+{% if version %}\
+    ## {{ version | trim_start_matches(pat="v") }} — {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+    ## Unreleased
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+    ### {{ group | striptags | trim | upper_first }}
+    {% for commit in commits %}
+        - {% if commit.scope %}*({{ commit.scope }})* {% endif %}\
+            {% if commit.breaking %}[**breaking**] {% endif %}\
+            {{ commit.message | upper_first }} (`{{ commit.id | truncate(length=7, end="") }}`)\
+    {% endfor %}
+{% endfor %}\n
+"""
+trim = true
+footer = ""
+
+[git]
+conventional_commits = true
+filter_unconventional = true       # drop non-CC commits (e.g. the initial commit)
+split_commits = false
+protect_breaking_commits = true
+filter_commits = false
+tag_pattern = '^v[0-9]+\.[0-9]+\.[0-9]+'   # CalVer regex (literal string so \. is not a TOML escape): v2026.6.0, v2026.6.0-alpha.1, …
+topo_order = false
+sort_commits = "oldest"
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->🚀 Features" },
+  { message = "^fix", group = "<!-- 1 -->🐛 Bug Fixes" },
+  { message = "^refactor", group = "<!-- 2 -->🚜 Refactor" },
+  { message = "^perf", group = "<!-- 3 -->⚡ Performance" },
+  { message = "^docs", group = "<!-- 4 -->📚 Documentation" },
+  { message = "^test", group = "<!-- 5 -->🧪 Testing" },
+  { message = "^(build|ci)", group = "<!-- 6 -->🏗️ Build & CI" },
+  { message = "^chore", group = "<!-- 7 -->⚙️ Miscellaneous Tasks" },
+  { message = "^style", group = "<!-- 8 -->🎨 Styling" },
+  { message = "^revert", group = "<!-- 9 -->◀️ Reverts" },
+  { message = ".*", group = "<!-- 10 -->💼 Other" },
+]

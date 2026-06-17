@@ -1,0 +1,114 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  # Gate: the pushed tag must match Cargo.toml version (sans leading "v"),
+  # so a v2026.6.0-alpha.1 tag can never ship a binary built from a stale version.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: false          # don't pull git-flow-next; we only need rust
+      - run: mise install rust
+      - name: Tag matches Cargo.toml version
+        run: |
+          cargo_version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$cargo_version" != "$tag" ]; then
+            echo "::error::tag ${GITHUB_REF_NAME} != Cargo.toml version ${cargo_version}"
+            exit 1
+          fi
+
+  build-linux:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      TARGET: x86_64-unknown-linux-musl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: mise install rust
+      - name: Add musl target and linker
+        run: |
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          rustup target add "$TARGET"      # assumes mise's rust ships rustup
+      - run: cargo build --release --target "$TARGET"
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          tar czf "claude-shim-${version}-${TARGET}.tar.gz" \
+            -C "target/${TARGET}/release" claude-shim
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: claude-shim-*.tar.gz
+
+  build-macos:
+    needs: verify
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: mise install rust
+      - name: Add darwin targets
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - name: Build both arches and fuse into a universal binary
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          lipo -create -output claude-shim \
+            target/aarch64-apple-darwin/release/claude-shim \
+            target/x86_64-apple-darwin/release/claude-shim
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          tar czf "claude-shim-${version}-macos-universal.tar.gz" claude-shim
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: claude-shim-*.tar.gz
+
+  release:
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # git-cliff needs full history + tags to build the changelog
+      - uses: jdx/mise-action@v2
+        with:
+          install: false
+      - run: mise install git-cliff
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Generate release notes with git-cliff
+        run: git-cliff --latest --strip header --output NOTES.md
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=()
+          case "$GITHUB_REF_NAME" in
+            *-*) flags+=(--prerelease) ;;   # any pre-release suffix (-alpha.N, -rc.N, …)
+          esac
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --notes-file NOTES.md \
+            "${flags[@]}" \
+            dist/*.tar.gz
