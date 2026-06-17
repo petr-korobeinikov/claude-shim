@@ -97,7 +97,7 @@ jobs:
           path: dist
           merge-multiple: true
       - name: Generate release notes with git-cliff
-        run: git-cliff --latest --strip header --output NOTES.md
+        run: mise exec -- git-cliff --latest --strip header --output NOTES.md
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
