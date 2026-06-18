@@ -4,6 +4,7 @@ lockfile = true
 
 [tools]
 rust = { version = "1.95.0", components = "rustfmt,clippy" }
+node = "24.16.0"
 "aqua:gittower/git-flow-next" = "1.1.0"
 "aqua:rhysd/actionlint" = "1.7.12"
 "aqua:nektos/act" = "0.2.89"
