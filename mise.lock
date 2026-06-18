@@ -138,3 +138,6 @@ provenance = "github-attestations"
 [[tools.rust]]
 version = "1.95.0"
 backend = "core:rust"
+
+[tools.rust.options]
+components = "clippy,rustfmt"
