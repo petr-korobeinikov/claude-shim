@@ -1,0 +1,24 @@
+name: ci
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+  workflow_call:          # lets release.yml gate on this workflow before building
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: false   # don't pull git-flow-next/actionlint/etc.; we only need rust
+      - run: mise install rust
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings   # [lints.clippy] pedantic in Cargo.toml makes this enforce pedantic
+      - run: cargo test
+      - run: cargo build
