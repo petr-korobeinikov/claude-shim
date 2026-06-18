@@ -102,9 +102,8 @@ mod tests {
 
     #[test]
     fn parses_profile_new_with_default_flag() {
-        let cli =
-            Cli::try_parse_from(["claude-shim", "profile", "new", "personal", "--default"])
-                .unwrap();
+        let cli = Cli::try_parse_from(["claude-shim", "profile", "new", "personal", "--default"])
+            .unwrap();
         match cli.command {
             Command::Profile {
                 action: ProfileAction::New { name, default },

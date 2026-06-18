@@ -3,9 +3,10 @@ use std::env;
 use directories::BaseDirs;
 
 pub(crate) fn zsh() -> String {
-    let exe = env::current_exe()
-        .ok()
-        .map_or_else(|| "claude-shim".to_string(), |p| p.to_string_lossy().into_owned());
+    let exe = env::current_exe().ok().map_or_else(
+        || "claude-shim".to_string(),
+        |p| p.to_string_lossy().into_owned(),
+    );
     ZSH_TEMPLATE
         .replace("__CLAUDE_SHIM_BIN__", &shell_quote(&exe))
         .replace("__CLAUDE_SHIM_SHIMS__", &shell_quote(&shims_dir()))
@@ -124,7 +125,9 @@ mod tests {
         let snippet = zsh();
         assert!(snippet.contains("_claude_shim_shims="));
         assert!(snippet.contains("_claude_shim_ensure_path()"));
-        assert!(snippet.contains(r#"path=("$_claude_shim_shims" "${(@)path:#$_claude_shim_shims}")"#));
+        assert!(
+            snippet.contains(r#"path=("$_claude_shim_shims" "${(@)path:#$_claude_shim_shims}")"#)
+        );
         // Initial call right after defining the function.
         assert!(snippet.contains("\n_claude_shim_ensure_path\n"));
         // And on every prompt — first line inside _claude_shim_precmd.

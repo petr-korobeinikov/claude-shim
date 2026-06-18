@@ -150,8 +150,12 @@ pub(crate) fn list() -> ExitCode {
         eprintln!("claude-shim: unable to determine base directories");
         return ExitCode::from(2);
     };
-    let default_name =
-        read_marker_file(&base.config_dir().join("claude-shim").join("default-profile"));
+    let default_name = read_marker_file(
+        &base
+            .config_dir()
+            .join("claude-shim")
+            .join("default-profile"),
+    );
     let active_name = env::current_dir().ok().and_then(|cwd| {
         match resolve(&cwd, base.home_dir(), base.config_dir()) {
             Resolution::Profile(p) if profile_dir(base.data_dir(), &p.name).is_dir() => {
@@ -236,8 +240,7 @@ pub(crate) fn create(
     let default_marker = if set_default {
         let marker = config_dir.join("claude-shim").join("default-profile");
         if let Some(parent) = marker.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| NewError::Io(parent.to_path_buf(), e))?;
+            std::fs::create_dir_all(parent).map_err(|e| NewError::Io(parent.to_path_buf(), e))?;
         }
         std::fs::write(&marker, format!("{name}\n"))
             .map_err(|e| NewError::Io(marker.clone(), e))?;
@@ -573,7 +576,10 @@ mod tests {
                 assert_eq!(p.source, ProfileSource::Project);
                 assert_eq!(p.marker, proj_marker);
             }
-            other => panic!("expected Project, got {:?}", matches!(other, Resolution::Profile(_))),
+            other => panic!(
+                "expected Project, got {:?}",
+                matches!(other, Resolution::Profile(_))
+            ),
         }
     }
 
@@ -662,7 +668,10 @@ mod tests {
             panic!("expected Ok");
         });
         let marker = c.default_marker.expect("default marker expected");
-        assert_eq!(marker, config.path().join("claude-shim").join("default-profile"));
+        assert_eq!(
+            marker,
+            config.path().join("claude-shim").join("default-profile")
+        );
         assert_eq!(fs::read_to_string(&marker).unwrap(), "personal\n");
     }
 
@@ -714,7 +723,10 @@ mod tests {
         let a = apply(cwd.path(), data.path(), "work", false).unwrap_or_else(|_| {
             panic!("expected Ok");
         });
-        assert_eq!(a.marker_path, cwd.path().join(".claude").join("claude-shim-profile"));
+        assert_eq!(
+            a.marker_path,
+            cwd.path().join(".claude").join("claude-shim-profile")
+        );
         assert_eq!(fs::read_to_string(&a.marker_path).unwrap(), "work\n");
     }
 
@@ -819,7 +831,8 @@ mod tests {
         make_profile(data.path(), "personal");
         make_profile(data.path(), "work");
 
-        let got = collect(data.path(), Some("work"), None).unwrap_or_else(|_| panic!("expected Ok"));
+        let got =
+            collect(data.path(), Some("work"), None).unwrap_or_else(|_| panic!("expected Ok"));
         let work = got.iter().find(|p| p.name == "work").unwrap();
         let personal = got.iter().find(|p| p.name == "personal").unwrap();
         assert!(work.is_default && !work.is_active);

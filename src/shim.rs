@@ -50,7 +50,10 @@ fn try_run() -> Result<Infallible, ShimError> {
         }
         Resolution::Legacy => {}
         Resolution::None => {
-            let default_marker = base.config_dir().join("claude-shim").join("default-profile");
+            let default_marker = base
+                .config_dir()
+                .join("claude-shim")
+                .join("default-profile");
             return Err(ShimError::NoProfileInScope {
                 cwd,
                 home: base.home_dir().to_path_buf(),
@@ -211,7 +214,10 @@ mod tests {
     #[test]
     fn shim_error_base_dirs_unavailable_renders() {
         let msg = ShimError::BaseDirsUnavailable.to_string();
-        assert!(msg.contains("cannot resolve base directories"), "got: {msg}");
+        assert!(
+            msg.contains("cannot resolve base directories"),
+            "got: {msg}"
+        );
     }
 
     #[test]
@@ -320,7 +326,10 @@ mod tests {
         let real = make_executable(real_dir.path(), "claude");
 
         let path = join_path(&[shim_dir.path(), real_dir.path()]);
-        assert_eq!(find_real_claude(&path, Some(shim_dir.path())).unwrap(), real);
+        assert_eq!(
+            find_real_claude(&path, Some(shim_dir.path())).unwrap(),
+            real
+        );
     }
 
     #[test]
