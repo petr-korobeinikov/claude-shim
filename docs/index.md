@@ -4,7 +4,7 @@ layout: home
 hero:
   name: claude-shim
   text: Profile manager for Claude Code
-  tagline: Swap CLAUDE_CONFIG_DIR per project, and show the active profile in your shell prompt.
+  tagline: Swap CLAUDE_CONFIG_DIR per project and show the active profile in your shell prompt.
   actions:
     - theme: brand
       text: Get started

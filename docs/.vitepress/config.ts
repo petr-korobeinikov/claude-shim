@@ -14,8 +14,18 @@ export default defineConfig({
       { text: 'Quick Start', link: '/guide/quick-start' },
     ],
     sidebar: [
-      { text: 'Quick Start', link: '/guide/quick-start' },
-      { text: 'Installation', link: '/guide/installation' },
+      {
+        text: 'Guide',
+        items: [
+          { text: 'Quick Start', link: '/guide/quick-start' },
+          { text: 'Installation', link: '/guide/installation' },
+          { text: 'Prompt indicator', link: '/guide/prompt-indicator' },
+          { text: 'Profiles', link: '/guide/profiles' },
+          { text: 'Profile resolution', link: '/guide/resolution' },
+          { text: 'Migration', link: '/guide/migration' },
+        ],
+      },
+      { text: 'Contributing', link: '/contributing' },
     ],
     socialLinks: [
       { icon: 'github', link: 'https://github.com/petr-korobeinikov/claude-shim' },
