@@ -20,8 +20,8 @@ jobs:
     needs: ci
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
         with:
           install: false          # don't pull git-flow-next; we only need rust
       - run: mise install rust
@@ -40,8 +40,8 @@ jobs:
     env:
       TARGET: x86_64-unknown-linux-musl
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
         with:
           install: false
       - run: mise install rust
@@ -55,7 +55,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           tar czf "claude-shim-${version}-${TARGET}.tar.gz" \
             -C "target/${TARGET}/release" claude-shim
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux
           path: claude-shim-*.tar.gz
@@ -64,8 +64,8 @@ jobs:
     needs: verify
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@v2
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
         with:
           install: false
       - run: mise install rust
@@ -82,7 +82,7 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           tar czf "claude-shim-${version}-macos-universal.tar.gz" claude-shim
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos
           path: claude-shim-*.tar.gz
@@ -91,14 +91,14 @@ jobs:
     needs: [build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0          # git-cliff needs full history + tags to build the changelog
-      - uses: jdx/mise-action@v2
+      - uses: jdx/mise-action@v4
         with:
           install: false
       - run: mise install git-cliff
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
