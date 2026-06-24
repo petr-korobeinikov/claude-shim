@@ -12,5 +12,9 @@ directories = "6.0.0"
 [dev-dependencies]
 tempfile = "3.27.0"
 
+[profile.release]
+# Strip the symbol table from shipped binaries; the release profile emits no debuginfo anyway.
+strip = true
+
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
