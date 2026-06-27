@@ -25,6 +25,20 @@ Collapse the feature into a single commit
 (`git rebase -i $(git merge-base HEAD develop)`)
 before running `feature finish`.
 
+## Pre-commit hooks
+
+`mise install` also brings in `prek`
+(a Rust drop-in for `pre-commit`, pinned in `mise.toml`),
+so local commits run the same `cargo fmt` / `clippy` gates as CI.
+Wire the hook into `.git/hooks/` once per fresh working copy:
+
+```sh
+prek install
+```
+
+The hooks in `.pre-commit-config.yaml` mirror `.github/workflows/ci.yml`,
+so a clean local commit means a green CI check.
+
 ## Claude Code skills
 
 `skills-lock.json` pins the Claude Code skill set this repo expects.

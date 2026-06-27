@@ -1,0 +1,18 @@
+# Local pre-commit hooks, run via prek (aqua:j178/prek, pinned in mise.toml).
+# Bootstrap once per clone: `prek install`. Commands mirror .github/workflows/ci.yml
+# byte-for-byte so local and CI never diverge.
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt --check
+        entry: cargo fmt --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: cargo-clippy
+        name: cargo clippy --all-targets -- -D warnings
+        entry: cargo clippy --all-targets -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false

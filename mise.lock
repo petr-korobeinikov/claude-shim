@@ -32,6 +32,45 @@ url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-fl
 checksum = "sha256:efc99c155c2ffd8259b2abbad69551928cbcfecf00c8b5031a12a0c67b3edb25"
 url = "https://github.com/gittower/git-flow-next/releases/download/v1.1.0/git-flow-next-v1.1.0-windows-amd64.zip"
 
+[[tools."aqua:j178/prek"]]
+version = "0.4.5"
+backend = "aqua:j178/prek"
+
+[tools."aqua:j178/prek"."platforms.linux-arm64"]
+checksum = "sha256:9c3f0686b6f12995b2f9cbc2953a457987622a29bbcdeaa64f62527af851fc1e"
+url = "https://github.com/j178/prek/releases/download/v0.4.5/prek-aarch64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
+
+[tools."aqua:j178/prek"."platforms.linux-arm64-musl"]
+checksum = "sha256:9c3f0686b6f12995b2f9cbc2953a457987622a29bbcdeaa64f62527af851fc1e"
+url = "https://github.com/j178/prek/releases/download/v0.4.5/prek-aarch64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
+
+[tools."aqua:j178/prek"."platforms.linux-x64"]
+checksum = "sha256:94698d1cd74e7b462a017257efeab6f46142f4fb3da9a1314f06c1d55c26d614"
+url = "https://github.com/j178/prek/releases/download/v0.4.5/prek-x86_64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
+
+[tools."aqua:j178/prek"."platforms.linux-x64-musl"]
+checksum = "sha256:94698d1cd74e7b462a017257efeab6f46142f4fb3da9a1314f06c1d55c26d614"
+url = "https://github.com/j178/prek/releases/download/v0.4.5/prek-x86_64-unknown-linux-musl.tar.gz"
+provenance = "github-attestations"
+
+[tools."aqua:j178/prek"."platforms.macos-arm64"]
+checksum = "sha256:ed4920762f0e3db07163c437af622a1d4905e1ad7053692a495551b9ce92549f"
+url = "https://github.com/j178/prek/releases/download/v0.4.5/prek-aarch64-apple-darwin.tar.gz"
+provenance = "github-attestations"
+
+[tools."aqua:j178/prek"."platforms.macos-x64"]
+checksum = "sha256:b0afc8bbea69d61bbfe49100394df99eed15a9c4675b06c9936417e65aa88b16"
+url = "https://github.com/j178/prek/releases/download/v0.4.5/prek-x86_64-apple-darwin.tar.gz"
+provenance = "github-attestations"
+
+[tools."aqua:j178/prek"."platforms.windows-x64"]
+checksum = "sha256:1ee0d2b210acc805e0ccd1b00fa84eb1d0d939f1a79da37ae9f432e1c16c5986"
+url = "https://github.com/j178/prek/releases/download/v0.4.5/prek-x86_64-pc-windows-msvc.zip"
+provenance = "github-attestations"
+
 [[tools."aqua:nektos/act"]]
 version = "0.2.89"
 backend = "aqua:nektos/act"
