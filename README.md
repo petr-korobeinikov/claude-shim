@@ -1,6 +1,6 @@
 # claude-shim
 
-Profile manager for Claude Code:
+Claude Code profile manager:
 swaps `CLAUDE_CONFIG_DIR` per project
 and shows the active profile in the shell prompt.
 

@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress'
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: 'claude-shim',
-  description: 'Profile manager for Claude Code',
+  description: 'Claude Code profile manager. Combat-proven. Automagic.',
   base: '/claude-shim/',
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
