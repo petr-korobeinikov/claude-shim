@@ -22,6 +22,13 @@ Claude Code initializes the profile contents (settings, credentials, history) on
 Both `profile new` and `profile use` fail loud rather than overwrite existing state —
 remove the old profile directory or marker file before retrying.
 
+::: tip
+`profile new` seeds a `CLAUDE.md` into the profile directory.
+Because the shim points `CLAUDE_CONFIG_DIR` there,
+Claude Code loads it as user memory and learns its config lives in the profile dir —
+not in `~/.claude` (which is overridden). A project's own `.claude/` is unaffected.
+:::
+
 `claude-shim profile current` in a directory with a valid profile prints the name and exits 0;
 without a profile, it prints nothing and exits 0;
 if the file points at a non-existent profile directory, it warns on stderr and exits 2.

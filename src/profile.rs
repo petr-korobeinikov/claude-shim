@@ -233,10 +233,8 @@ pub(crate) fn create(
         return Err(NewError::InvalidName);
     }
     let dir = profile_dir(data_dir, name);
-    if dir.exists() {
-        return Err(NewError::AlreadyExists(dir));
-    }
-    std::fs::create_dir_all(&dir).map_err(|e| NewError::Io(dir.clone(), e))?;
+    make_profile_dir(&dir)?;
+    seed_claude_md(&dir)?;
     let default_marker = if set_default {
         let marker = config_dir.join("claude-shim").join("default-profile");
         if let Some(parent) = marker.parent() {
@@ -252,6 +250,37 @@ pub(crate) fn create(
         profile_dir: dir,
         default_marker,
     })
+}
+
+// Seeded into every new profile dir (which the shim exports as CLAUDE_CONFIG_DIR).
+// Claude Code auto-loads $CLAUDE_CONFIG_DIR/CLAUDE.md as user memory, so each
+// session learns up front that config lives here, not in the overridden ~/.claude.
+const PROFILE_CLAUDE_MD: &str = "\
+# claude-shim profile
+
+This Claude Code session runs under a claude-shim profile, so its user-level
+configuration lives in this directory (the value of `CLAUDE_CONFIG_DIR`) —
+not in `~/.claude`.
+
+`CLAUDE_CONFIG_DIR` overrides the default location, so reads and writes to
+`~/.claude` (e.g. `~/.claude/settings.json`) are ignored for this session.
+To change user-level settings, memory, or commands, edit the files in this
+directory instead.
+
+This applies only to the user config directory. A project's own `.claude/`
+directory is not affected — use it normally.
+";
+
+fn make_profile_dir(dir: &Path) -> Result<(), NewError> {
+    if dir.exists() {
+        return Err(NewError::AlreadyExists(dir.to_path_buf()));
+    }
+    std::fs::create_dir_all(dir).map_err(|e| NewError::Io(dir.to_path_buf(), e))
+}
+
+fn seed_claude_md(dir: &Path) -> Result<(), NewError> {
+    let path = dir.join("CLAUDE.md");
+    std::fs::write(&path, PROFILE_CLAUDE_MD).map_err(|e| NewError::Io(path, e))
 }
 
 pub(crate) fn collect(
@@ -658,6 +687,18 @@ mod tests {
         assert_eq!(c.profile_dir, profile_dir(data.path(), "personal"));
         assert!(c.default_marker.is_none());
         assert!(!config.path().join("claude-shim").exists());
+    }
+
+    #[test]
+    fn create_seeds_claude_md_in_profile_dir() {
+        let data = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let c = create(data.path(), config.path(), "personal", false).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
+        let claude_md = c.profile_dir.join("CLAUDE.md");
+        assert!(claude_md.is_file());
+        assert_eq!(fs::read_to_string(&claude_md).unwrap(), PROFILE_CLAUDE_MD);
     }
 
     #[test]
