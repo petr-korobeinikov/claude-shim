@@ -58,3 +58,7 @@ resolution, the workspace marker, and migrating an existing `~/.claude`.
 
 Local Gitflow setup and the Claude Code skill set are documented in
 [Contributing](https://petr-korobeinikov.github.io/claude-shim/contributing).
+
+## License
+
+[MIT](LICENSE)
