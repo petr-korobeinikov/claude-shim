@@ -1,10 +1,14 @@
 import { defineConfig } from 'vitepress'
+import llmstxt from 'vitepress-plugin-llms'
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
   title: 'claude-shim',
   description: 'Claude Code profile manager. Combat-proven. Automagic.',
   base: '/claude-shim/',
+  vite: {
+    plugins: [llmstxt({ domain: 'https://petr-korobeinikov.github.io' })],
+  },
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     search: {
