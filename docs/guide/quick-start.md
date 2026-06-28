@@ -1,6 +1,6 @@
 # Quick Start
 
-Set up per-project profile switching in four steps.
+Set up per-project profile switching in three steps.
 Each step links to the page with the full details.
 
 ## 1. Install
@@ -26,25 +26,16 @@ Put it on your `PATH`, or substitute its full path below.
 
 ## 2. Wire up the shell hook
 
-Exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt.
+Keeps the shims dir first on your `PATH` so the `claude` shim is what runs.
+It also exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt
+as a secondary effect the optional prompt indicator consumes.
 Add to `~/.zshrc` and re-source:
 
 ```sh
 eval "$(claude-shim init zsh)"
 ```
 
-## 3. Show the active profile
-
-The minimal indicator — a plain PS1:
-
-```sh
-PS1='%n@%m %~ ${CLAUDE_SHIM_ACTIVE_PROFILE:+[$CLAUDE_SHIM_ACTIVE_PROFILE] }%# '
-```
-
-oh-my-posh users have minimal and powerline variants in
-[Prompt indicator](/guide/prompt-indicator).
-
-## 4. Create a profile and point a project at it
+## 3. Create a profile and point a project at it
 
 ```sh
 # A global default + a second profile (--statusline adds the in-session indicator)
@@ -58,6 +49,14 @@ claude-shim profile use work
 
 `claude` launched from that directory now runs under the chosen profile;
 Claude Code initializes its contents on first launch.
-See [Profiles](/guide/profiles) for `current` / `list` and the workspace marker,
-[statusLine indicator](/guide/statusline) for the in-session status bar,
-and [Profile resolution](/guide/resolution) for how the active profile is chosen.
+
+## Next steps
+
+- **Show the active profile in your shell prompt** —
+  [Prompt indicator](/guide/prompt-indicator) has the plain `PS1` plus oh-my-posh variants.
+- **Show it in Claude Code's status bar (statusLine)** —
+  [statusLine indicator](/guide/statusline).
+- **Manage profiles** —
+  [Profiles](/guide/profiles) covers `current` / `list` and the workspace marker.
+- **Understand profile resolution** —
+  [Profile resolution](/guide/resolution) explains how the active profile is chosen.
