@@ -23,8 +23,22 @@ pub fn run() -> ExitCode {
             action: ProfileAction::Current,
         } => profile::current(),
         Command::Profile {
-            action: ProfileAction::New { name, default },
-        } => profile::new(&name, default),
+            action:
+                ProfileAction::New {
+                    name,
+                    default,
+                    statusline,
+                },
+        } => profile::new(&name, default, statusline),
+        Command::Profile {
+            action:
+                ProfileAction::Statusline {
+                    profile,
+                    preset,
+                    command,
+                    force,
+                },
+        } => profile::statusline(profile.as_deref(), preset, command, force),
         Command::Profile {
             action: ProfileAction::Use { name, workspace },
         } => profile::use_profile(&name, workspace),

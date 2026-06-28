@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{ArgGroup, Parser, Subcommand, ValueEnum};
 
 #[derive(Parser)]
 #[command(name = "claude-shim", version, about = "Claude Code profile manager")]
@@ -32,6 +32,25 @@ pub(crate) enum ProfileAction {
         /// Also set this profile as the global default
         #[arg(long)]
         default: bool,
+        /// Also write a settings.json with a statusLine showing the active profile
+        #[arg(long)]
+        statusline: bool,
+    },
+    /// Set a profile's statusLine (a preset or a custom command)
+    #[command(group(ArgGroup::new("source").required(true).args(["preset", "command"])))]
+    Statusline {
+        /// Profile to modify (defaults to the active profile)
+        #[arg(long)]
+        profile: Option<String>,
+        /// Built-in preset to install
+        #[arg(long, value_enum)]
+        preset: Option<crate::profile::StatusLinePreset>,
+        /// Custom statusLine command (mutually exclusive with --preset)
+        #[arg(value_name = "COMMAND")]
+        command: Option<String>,
+        /// Overwrite an existing statusLine
+        #[arg(long)]
+        force: bool,
     },
     /// Bind the current directory to a profile via a marker file
     Use {
@@ -91,10 +110,16 @@ mod tests {
         let cli = Cli::try_parse_from(["claude-shim", "profile", "new", "personal"]).unwrap();
         match cli.command {
             Command::Profile {
-                action: ProfileAction::New { name, default },
+                action:
+                    ProfileAction::New {
+                        name,
+                        default,
+                        statusline,
+                    },
             } => {
                 assert_eq!(name, "personal");
                 assert!(!default);
+                assert!(!statusline);
             }
             _ => panic!("expected Profile::New"),
         }
@@ -106,11 +131,30 @@ mod tests {
             .unwrap();
         match cli.command {
             Command::Profile {
-                action: ProfileAction::New { name, default },
+                action:
+                    ProfileAction::New {
+                        name,
+                        default,
+                        statusline,
+                    },
             } => {
                 assert_eq!(name, "personal");
                 assert!(default);
+                assert!(!statusline);
             }
+            _ => panic!("expected Profile::New"),
+        }
+    }
+
+    #[test]
+    fn parses_profile_new_with_statusline_flag() {
+        let cli =
+            Cli::try_parse_from(["claude-shim", "profile", "new", "personal", "--statusline"])
+                .unwrap();
+        match cli.command {
+            Command::Profile {
+                action: ProfileAction::New { statusline, .. },
+            } => assert!(statusline),
             _ => panic!("expected Profile::New"),
         }
     }
@@ -118,6 +162,115 @@ mod tests {
     #[test]
     fn rejects_profile_new_without_name() {
         assert!(Cli::try_parse_from(["claude-shim", "profile", "new"]).is_err());
+    }
+
+    #[test]
+    fn parses_profile_statusline_with_preset() {
+        let cli = Cli::try_parse_from([
+            "claude-shim",
+            "profile",
+            "statusline",
+            "--preset",
+            "profile-indicator",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Profile {
+                action:
+                    ProfileAction::Statusline {
+                        profile,
+                        preset,
+                        command,
+                        force,
+                    },
+            } => {
+                assert!(profile.is_none());
+                assert!(matches!(
+                    preset,
+                    Some(crate::profile::StatusLinePreset::ProfileIndicator)
+                ));
+                assert!(command.is_none());
+                assert!(!force);
+            }
+            _ => panic!("expected Profile::Statusline"),
+        }
+    }
+
+    #[test]
+    fn parses_profile_statusline_with_custom_command() {
+        let cli = Cli::try_parse_from(["claude-shim", "profile", "statusline", "echo hi"]).unwrap();
+        match cli.command {
+            Command::Profile {
+                action:
+                    ProfileAction::Statusline {
+                        preset, command, ..
+                    },
+            } => {
+                assert!(preset.is_none());
+                assert_eq!(command.as_deref(), Some("echo hi"));
+            }
+            _ => panic!("expected Profile::Statusline"),
+        }
+    }
+
+    #[test]
+    fn parses_profile_statusline_with_profile_and_force() {
+        let cli = Cli::try_parse_from([
+            "claude-shim",
+            "profile",
+            "statusline",
+            "--profile",
+            "work",
+            "--force",
+            "--preset",
+            "profile-indicator",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Profile {
+                action: ProfileAction::Statusline { profile, force, .. },
+            } => {
+                assert_eq!(profile.as_deref(), Some("work"));
+                assert!(force);
+            }
+            _ => panic!("expected Profile::Statusline"),
+        }
+    }
+
+    #[test]
+    fn parses_profile_statusline_force_after_command() {
+        let cli =
+            Cli::try_parse_from(["claude-shim", "profile", "statusline", "echo hi", "--force"])
+                .unwrap();
+        match cli.command {
+            Command::Profile {
+                action: ProfileAction::Statusline { command, force, .. },
+            } => {
+                assert_eq!(command.as_deref(), Some("echo hi"));
+                assert!(force);
+            }
+            _ => panic!("expected Profile::Statusline"),
+        }
+    }
+
+    #[test]
+    fn rejects_profile_statusline_without_source() {
+        assert!(Cli::try_parse_from(["claude-shim", "profile", "statusline"]).is_err());
+    }
+
+    #[test]
+    fn rejects_profile_statusline_with_both_preset_and_command() {
+        assert!(
+            Cli::try_parse_from([
+                "claude-shim",
+                "profile",
+                "statusline",
+                "--preset",
+                "profile-indicator",
+                "echo hi",
+            ])
+            .is_err()
+        );
     }
 
     #[test]

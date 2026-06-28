@@ -4,9 +4,10 @@ Create the profile directory,
 then point projects at it via a marker file:
 
 ```sh
-# Create the profile (--default also sets the global default).
+# Create profiles. --default sets the global default;
+# --statusline adds the in-session statusLine indicator.
 claude-shim profile new personal --default
-claude-shim profile new work
+claude-shim profile new work --statusline
 claude-shim profile new client-acme
 
 # Point a single project at a profile (writes .claude/claude-shim-profile):
@@ -28,6 +29,9 @@ Because the shim points `CLAUDE_CONFIG_DIR` there,
 Claude Code loads it as user memory and learns its config lives in the profile dir —
 not in `~/.claude` (which is overridden). A project's own `.claude/` is unaffected.
 :::
+
+See [statusLine indicator](/guide/statusline) to show the active profile
+in Claude Code's status bar (enable at creation with `--statusline`).
 
 `claude-shim profile current` in a directory with a valid profile prints the name and exits 0;
 without a profile, it prints nothing and exits 0;

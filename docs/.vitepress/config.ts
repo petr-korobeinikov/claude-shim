@@ -20,6 +20,7 @@ export default defineConfig({
           { text: 'Quick Start', link: '/guide/quick-start' },
           { text: 'Installation', link: '/guide/installation' },
           { text: 'Prompt indicator', link: '/guide/prompt-indicator' },
+          { text: 'statusLine indicator', link: '/guide/statusline' },
           { text: 'Profiles', link: '/guide/profiles' },
           { text: 'Profile resolution', link: '/guide/resolution' },
           { text: 'Migration', link: '/guide/migration' },

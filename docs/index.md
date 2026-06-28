@@ -18,4 +18,6 @@ features:
     details: Swaps CLAUDE_CONFIG_DIR automatically based on the project directory.
   - title: Prompt indicator
     details: Shows the active profile right in your shell prompt.
+  - title: statusLine indicator
+    details: Shows the active profile in Claude Code's in-session status bar.
 ---

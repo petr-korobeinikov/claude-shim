@@ -4,6 +4,9 @@ Both styles read `CLAUDE_SHIM_ACTIVE_PROFILE`,
 which the [shell hook](/guide/installation#shell-integration-zsh) exports —
 set that up first.
 
+For the indicator inside Claude Code's own status bar (not the shell prompt),
+see [statusLine indicator](/guide/statusline).
+
 Pick one of the styles below.
 
 ## Plain PS1

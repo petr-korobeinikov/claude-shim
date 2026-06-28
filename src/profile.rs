@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use directories::BaseDirs;
+use serde_json::{Map, Value, json};
 
 pub(crate) enum Resolution {
     Profile(ProfileRef),
@@ -31,12 +32,59 @@ struct ProjectMarker {
 pub(crate) struct Created {
     pub profile_dir: PathBuf,
     pub default_marker: Option<PathBuf>,
+    pub statusline_settings: Option<PathBuf>,
 }
 
 pub(crate) enum NewError {
     InvalidName,
     AlreadyExists(PathBuf),
     Io(PathBuf, io::Error),
+    Statusline(StatuslineError),
+}
+
+/// A statusLine to install into a profile's `settings.json`.
+enum StatusLine {
+    Preset(StatusLinePreset),
+    Custom(String),
+}
+
+/// Built-in statusLine presets selectable via `--preset`.
+#[derive(Copy, Clone, clap::ValueEnum)]
+pub(crate) enum StatusLinePreset {
+    /// Render `Current profile: <name>`, resolving the active profile.
+    ProfileIndicator,
+}
+
+pub(crate) enum StatuslineError {
+    AlreadySet(PathBuf),
+    NotAnObject(PathBuf),
+    Parse(PathBuf, serde_json::Error),
+    Serialize(serde_json::Error),
+    Io(PathBuf, io::Error),
+}
+
+// The shell command behind `StatusLinePreset::ProfileIndicator`. It prints
+// `Current profile: <name>`, resolving the active profile via the shim and
+// falling back to the CLAUDE_CONFIG_DIR basename when the binary or a marker
+// is unavailable at render time. This is a shell snippet (a value), not JSON —
+// the surrounding settings.json is built with serde_json, never hand-written.
+const PROFILE_INDICATOR_COMMAND: &str = "p=$(claude-shim profile current 2>/dev/null); [ -n \"$p\" ] || p=\"${CLAUDE_CONFIG_DIR##*/}\"; echo \"Current profile: $p\"";
+
+impl StatusLinePreset {
+    fn command(self) -> &'static str {
+        match self {
+            StatusLinePreset::ProfileIndicator => PROFILE_INDICATOR_COMMAND,
+        }
+    }
+}
+
+impl StatusLine {
+    fn command(&self) -> &str {
+        match self {
+            StatusLine::Preset(preset) => preset.command(),
+            StatusLine::Custom(command) => command,
+        }
+    }
 }
 
 pub(crate) struct Applied {
@@ -74,14 +122,23 @@ pub(crate) fn current() -> ExitCode {
     }
 }
 
-pub(crate) fn new(name: &str, set_default: bool) -> ExitCode {
+pub(crate) fn new(name: &str, set_default: bool, statusline: bool) -> ExitCode {
     let Some(base) = BaseDirs::new() else {
         eprintln!("claude-shim: unable to determine base directories");
         return ExitCode::from(2);
     };
-    match create(base.data_dir(), base.config_dir(), name, set_default) {
+    match create(
+        base.data_dir(),
+        base.config_dir(),
+        name,
+        set_default,
+        statusline,
+    ) {
         Ok(c) => {
             println!("created profile '{name}' at {}", c.profile_dir.display());
+            if let Some(path) = c.statusline_settings {
+                println!("enabled statusLine indicator at {}", path.display());
+            }
             if let Some(marker) = c.default_marker {
                 println!("set '{name}' as the global default ({})", marker.display());
             }
@@ -100,6 +157,73 @@ pub(crate) fn new(name: &str, set_default: bool) -> ExitCode {
         }
         Err(NewError::Io(path, e)) => {
             eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            ExitCode::from(2)
+        }
+        Err(NewError::Statusline(e)) => {
+            report_statusline_error(&e);
+            ExitCode::from(2)
+        }
+    }
+}
+
+pub(crate) fn statusline(
+    profile: Option<&str>,
+    preset: Option<StatusLinePreset>,
+    command: Option<String>,
+    force: bool,
+) -> ExitCode {
+    let Some(base) = BaseDirs::new() else {
+        eprintln!("claude-shim: unable to determine base directories");
+        return ExitCode::from(2);
+    };
+    let requested = match (preset, command) {
+        (Some(preset), None) => StatusLine::Preset(preset),
+        (None, Some(command)) => StatusLine::Custom(command),
+        (None, None) => {
+            eprintln!("claude-shim: pass --preset <preset> or a custom command");
+            return ExitCode::from(2);
+        }
+        (Some(_), Some(_)) => {
+            eprintln!("claude-shim: --preset and a custom command are mutually exclusive");
+            return ExitCode::from(2);
+        }
+    };
+    let name = if let Some(name) = profile {
+        name.to_owned()
+    } else {
+        let Ok(cwd) = env::current_dir() else {
+            eprintln!("claude-shim: unable to read current directory");
+            return ExitCode::from(2);
+        };
+        let Some(name) = active_profile(&cwd, base.home_dir(), base.config_dir()) else {
+            eprintln!("claude-shim: no active profile here — pass --profile <name>");
+            return ExitCode::from(2);
+        };
+        name
+    };
+    if !is_valid_profile_name(&name) {
+        eprintln!("claude-shim: invalid profile name '{name}'");
+        return ExitCode::from(2);
+    }
+    let dir = profile_dir(base.data_dir(), &name);
+    if !dir.is_dir() {
+        eprintln!(
+            "claude-shim: profile '{name}' does not exist at {}",
+            dir.display()
+        );
+        return ExitCode::from(2);
+    }
+    let settings_path = dir.join("settings.json");
+    match set_statusline(&settings_path, &requested, force) {
+        Ok(()) => {
+            println!(
+                "set statusLine on profile '{name}' ({})",
+                settings_path.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            report_statusline_error(&e);
             ExitCode::from(2)
         }
     }
@@ -157,12 +281,8 @@ pub(crate) fn list() -> ExitCode {
             .join("default-profile"),
     );
     let active_name = env::current_dir().ok().and_then(|cwd| {
-        match resolve(&cwd, base.home_dir(), base.config_dir()) {
-            Resolution::Profile(p) if profile_dir(base.data_dir(), &p.name).is_dir() => {
-                Some(p.name)
-            }
-            _ => None,
-        }
+        active_profile(&cwd, base.home_dir(), base.config_dir())
+            .filter(|name| profile_dir(base.data_dir(), name).is_dir())
     });
     match collect(
         base.data_dir(),
@@ -228,6 +348,7 @@ pub(crate) fn create(
     config_dir: &Path,
     name: &str,
     set_default: bool,
+    statusline: bool,
 ) -> Result<Created, NewError> {
     if !is_valid_profile_name(name) {
         return Err(NewError::InvalidName);
@@ -235,6 +356,20 @@ pub(crate) fn create(
     let dir = profile_dir(data_dir, name);
     make_profile_dir(&dir)?;
     seed_claude_md(&dir)?;
+    let statusline_settings = if statusline {
+        let path = dir.join("settings.json");
+        // The profile dir was just created, so there is no settings.json to
+        // clobber; force is moot here.
+        set_statusline(
+            &path,
+            &StatusLine::Preset(StatusLinePreset::ProfileIndicator),
+            true,
+        )
+        .map_err(NewError::Statusline)?;
+        Some(path)
+    } else {
+        None
+    };
     let default_marker = if set_default {
         let marker = config_dir.join("claude-shim").join("default-profile");
         if let Some(parent) = marker.parent() {
@@ -249,6 +384,7 @@ pub(crate) fn create(
     Ok(Created {
         profile_dir: dir,
         default_marker,
+        statusline_settings,
     })
 }
 
@@ -281,6 +417,80 @@ fn make_profile_dir(dir: &Path) -> Result<(), NewError> {
 fn seed_claude_md(dir: &Path) -> Result<(), NewError> {
     let path = dir.join("CLAUDE.md");
     std::fs::write(&path, PROFILE_CLAUDE_MD).map_err(|e| NewError::Io(path, e))
+}
+
+// The one mechanism for installing a statusLine: merge the `statusLine` key
+// into the profile's settings.json, preserving every other key. Used by both
+// `profile new --statusline` (fresh file) and `profile statusline` (existing).
+fn set_statusline(
+    settings_path: &Path,
+    statusline: &StatusLine,
+    force: bool,
+) -> Result<(), StatuslineError> {
+    let mut root = read_settings(settings_path)?;
+    if !force && root.contains_key("statusLine") {
+        return Err(StatuslineError::AlreadySet(settings_path.to_path_buf()));
+    }
+    root.insert(
+        "statusLine".to_owned(),
+        statusline_block(statusline.command()),
+    );
+    write_settings(settings_path, root)
+}
+
+fn statusline_block(command: &str) -> Value {
+    json!({
+        "type": "command",
+        "command": command,
+    })
+}
+
+fn read_settings(path: &Path) -> Result<Map<String, Value>, StatuslineError> {
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Map::new()),
+        Err(e) => return Err(StatuslineError::Io(path.to_path_buf(), e)),
+    };
+    if text.trim().is_empty() {
+        return Ok(Map::new());
+    }
+    match serde_json::from_str::<Value>(&text) {
+        Ok(Value::Object(map)) => Ok(map),
+        Ok(_) => Err(StatuslineError::NotAnObject(path.to_path_buf())),
+        Err(e) => Err(StatuslineError::Parse(path.to_path_buf(), e)),
+    }
+}
+
+fn write_settings(path: &Path, root: Map<String, Value>) -> Result<(), StatuslineError> {
+    let mut serialized =
+        serde_json::to_string_pretty(&Value::Object(root)).map_err(StatuslineError::Serialize)?;
+    serialized.push('\n');
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| StatuslineError::Io(parent.to_path_buf(), e))?;
+    }
+    std::fs::write(path, serialized).map_err(|e| StatuslineError::Io(path.to_path_buf(), e))
+}
+
+fn report_statusline_error(e: &StatuslineError) {
+    match e {
+        StatuslineError::AlreadySet(p) => eprintln!(
+            "claude-shim: statusLine already set in {} — pass --force to overwrite",
+            p.display()
+        ),
+        StatuslineError::NotAnObject(p) => {
+            eprintln!("claude-shim: {} is not a JSON object", p.display());
+        }
+        StatuslineError::Parse(p, err) => {
+            eprintln!("claude-shim: failed to parse {}: {err}", p.display());
+        }
+        StatuslineError::Serialize(err) => {
+            eprintln!("claude-shim: failed to serialize settings: {err}");
+        }
+        StatuslineError::Io(p, err) => {
+            eprintln!("claude-shim: I/O error at {}: {err}", p.display());
+        }
+    }
 }
 
 pub(crate) fn collect(
@@ -340,6 +550,16 @@ pub(crate) fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolution 
         return Resolution::Legacy;
     }
     Resolution::None
+}
+
+/// The profile active in `cwd` — the one `profile statusline` targets without
+/// `--profile`. Same resolution as the shim, mapped to its name; `None` when no
+/// profile is in scope.
+fn active_profile(cwd: &Path, home: &Path, config_dir: &Path) -> Option<String> {
+    match resolve(cwd, home, config_dir) {
+        Resolution::Profile(p) => Some(p.name),
+        Resolution::Legacy | Resolution::None => None,
+    }
 }
 
 fn find_project_marker(start: &Path, stop_at: Option<&Path>) -> Option<ProjectMarker> {
@@ -419,6 +639,7 @@ fn is_valid_profile_name(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value;
     use std::fs;
     use tempfile::TempDir;
 
@@ -655,6 +876,39 @@ mod tests {
     }
 
     #[test]
+    fn active_profile_uses_default_marker() {
+        let home = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let project = TempDir::new().unwrap();
+        write_default_marker(config.path(), "personal");
+        assert_eq!(
+            active_profile(project.path(), home.path(), config.path()).as_deref(),
+            Some("personal")
+        );
+    }
+
+    #[test]
+    fn active_profile_prefers_project_marker_over_default() {
+        let home = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let project = TempDir::new().unwrap();
+        write_project_marker(project.path(), "proj");
+        write_default_marker(config.path(), "global");
+        assert_eq!(
+            active_profile(project.path(), home.path(), config.path()).as_deref(),
+            Some("proj")
+        );
+    }
+
+    #[test]
+    fn active_profile_is_none_without_any_marker() {
+        let home = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let project = TempDir::new().unwrap();
+        assert!(active_profile(project.path(), home.path(), config.path()).is_none());
+    }
+
+    #[test]
     fn read_marker_file_returns_none_for_missing_file() {
         let dir = TempDir::new().unwrap();
         assert!(read_marker_file(&dir.path().join("absent")).is_none());
@@ -680,7 +934,7 @@ mod tests {
     fn create_makes_profile_directory() {
         let data = TempDir::new().unwrap();
         let config = TempDir::new().unwrap();
-        let c = create(data.path(), config.path(), "personal", false).unwrap_or_else(|_| {
+        let c = create(data.path(), config.path(), "personal", false, false).unwrap_or_else(|_| {
             panic!("expected Ok");
         });
         assert!(c.profile_dir.is_dir());
@@ -693,7 +947,7 @@ mod tests {
     fn create_seeds_claude_md_in_profile_dir() {
         let data = TempDir::new().unwrap();
         let config = TempDir::new().unwrap();
-        let c = create(data.path(), config.path(), "personal", false).unwrap_or_else(|_| {
+        let c = create(data.path(), config.path(), "personal", false, false).unwrap_or_else(|_| {
             panic!("expected Ok");
         });
         let claude_md = c.profile_dir.join("CLAUDE.md");
@@ -705,7 +959,7 @@ mod tests {
     fn create_with_default_writes_default_marker() {
         let data = TempDir::new().unwrap();
         let config = TempDir::new().unwrap();
-        let c = create(data.path(), config.path(), "personal", true).unwrap_or_else(|_| {
+        let c = create(data.path(), config.path(), "personal", true, false).unwrap_or_else(|_| {
             panic!("expected Ok");
         });
         let marker = c.default_marker.expect("default marker expected");
@@ -721,7 +975,7 @@ mod tests {
         let data = TempDir::new().unwrap();
         let config = TempDir::new().unwrap();
         assert!(matches!(
-            create(data.path(), config.path(), "a/b", false),
+            create(data.path(), config.path(), "a/b", false, false),
             Err(NewError::InvalidName)
         ));
     }
@@ -733,7 +987,7 @@ mod tests {
         let existing = profile_dir(data.path(), "personal");
         fs::create_dir_all(&existing).unwrap();
 
-        match create(data.path(), config.path(), "personal", false) {
+        match create(data.path(), config.path(), "personal", false, false) {
             Err(NewError::AlreadyExists(p)) => assert_eq!(p, existing),
             _ => panic!("expected AlreadyExists"),
         }
@@ -745,8 +999,150 @@ mod tests {
         let config = TempDir::new().unwrap();
         fs::create_dir_all(profile_dir(data.path(), "personal")).unwrap();
 
-        let _ = create(data.path(), config.path(), "personal", true);
+        let _ = create(data.path(), config.path(), "personal", true, false);
         assert!(!config.path().join("claude-shim").exists());
+    }
+
+    #[test]
+    fn create_with_statusline_writes_settings_json() {
+        let data = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let c = create(data.path(), config.path(), "personal", false, true)
+            .unwrap_or_else(|_| panic!("expected Ok"));
+        let settings = c.profile_dir.join("settings.json");
+        assert_eq!(c.statusline_settings.as_deref(), Some(settings.as_path()));
+        assert!(settings.is_file());
+        let value: Value = serde_json::from_str(&fs::read_to_string(&settings).unwrap()).unwrap();
+        assert_eq!(value["statusLine"]["type"], "command");
+        assert!(
+            value["statusLine"]["command"]
+                .as_str()
+                .unwrap()
+                .contains("Current profile:")
+        );
+    }
+
+    #[test]
+    fn create_without_statusline_omits_settings_json() {
+        let data = TempDir::new().unwrap();
+        let config = TempDir::new().unwrap();
+        let c = create(data.path(), config.path(), "personal", false, false)
+            .unwrap_or_else(|_| panic!("expected Ok"));
+        assert!(c.statusline_settings.is_none());
+        assert!(!c.profile_dir.join("settings.json").exists());
+    }
+
+    #[test]
+    fn set_statusline_creates_settings_when_absent() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+        set_statusline(
+            &path,
+            &StatusLine::Preset(StatusLinePreset::ProfileIndicator),
+            false,
+        )
+        .unwrap_or_else(|_| panic!("expected Ok"));
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(value["statusLine"]["type"], "command");
+    }
+
+    #[test]
+    fn set_statusline_merges_and_preserves_existing_keys_in_order() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(
+            &path,
+            "{\n  \"model\": \"opus\",\n  \"theme\": \"dark\"\n}\n",
+        )
+        .unwrap();
+        set_statusline(
+            &path,
+            &StatusLine::Preset(StatusLinePreset::ProfileIndicator),
+            false,
+        )
+        .unwrap_or_else(|_| panic!("expected Ok"));
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(value["model"], "opus");
+        assert_eq!(value["theme"], "dark");
+        assert_eq!(value["statusLine"]["type"], "command");
+        let keys: Vec<&str> = value
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(keys, vec!["model", "theme", "statusLine"]);
+    }
+
+    #[test]
+    fn set_statusline_fails_when_present_without_force() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(
+            &path,
+            r#"{"statusLine": {"type": "command", "command": "old"}}"#,
+        )
+        .unwrap();
+        match set_statusline(
+            &path,
+            &StatusLine::Preset(StatusLinePreset::ProfileIndicator),
+            false,
+        ) {
+            Err(StatuslineError::AlreadySet(p)) => assert_eq!(p, path),
+            _ => panic!("expected AlreadySet"),
+        }
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(value["statusLine"]["command"], "old");
+    }
+
+    #[test]
+    fn set_statusline_overwrites_with_force() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(
+            &path,
+            r#"{"statusLine": {"type": "command", "command": "old"}}"#,
+        )
+        .unwrap();
+        set_statusline(&path, &StatusLine::Custom("echo \"hi\"".to_owned()), true)
+            .unwrap_or_else(|_| panic!("expected Ok"));
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(value["statusLine"]["command"], "echo \"hi\"");
+    }
+
+    #[test]
+    fn set_statusline_rejects_non_object_json() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+        fs::write(&path, "[]").unwrap();
+        assert!(matches!(
+            set_statusline(
+                &path,
+                &StatusLine::Preset(StatusLinePreset::ProfileIndicator),
+                true,
+            ),
+            Err(StatuslineError::NotAnObject(_))
+        ));
+    }
+
+    #[test]
+    fn set_statusline_custom_command_round_trips_quotes() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+        let cmd = "echo \"a\\b\" 'c'";
+        set_statusline(&path, &StatusLine::Custom(cmd.to_owned()), false)
+            .unwrap_or_else(|_| panic!("expected Ok"));
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(value["statusLine"]["command"], cmd);
+    }
+
+    #[test]
+    fn profile_indicator_command_is_the_preset_snippet() {
+        assert_eq!(
+            StatusLine::Preset(StatusLinePreset::ProfileIndicator).command(),
+            PROFILE_INDICATOR_COMMAND
+        );
+        assert!(PROFILE_INDICATOR_COMMAND.contains("Current profile:"));
     }
 
     fn make_profile(data: &Path, name: &str) -> PathBuf {

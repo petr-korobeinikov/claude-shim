@@ -47,9 +47,9 @@ oh-my-posh users have minimal and powerline variants in
 ## 4. Create a profile and point a project at it
 
 ```sh
-# A global default + a second profile
+# A global default + a second profile (--statusline adds the in-session indicator)
 claude-shim profile new personal --default
-claude-shim profile new work
+claude-shim profile new work --statusline
 
 # Point one project at the work profile
 cd ~/Workspace/acme
@@ -59,4 +59,5 @@ claude-shim profile use work
 `claude` launched from that directory now runs under the chosen profile;
 Claude Code initializes its contents on first launch.
 See [Profiles](/guide/profiles) for `current` / `list` and the workspace marker,
+[statusLine indicator](/guide/statusline) for the in-session status bar,
 and [Profile resolution](/guide/resolution) for how the active profile is chosen.
