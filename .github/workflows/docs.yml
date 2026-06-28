@@ -1,8 +1,7 @@
 name: docs
 
 on:
-  release:
-    types: [published]
+  workflow_call:
   workflow_dispatch:
 
 # Pages deploy: read the repo, mint the OIDC token deploy-pages needs, and

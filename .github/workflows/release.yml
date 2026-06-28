@@ -118,3 +118,17 @@ jobs:
             --notes-file NOTES.md \
             "${flags[@]}" \
             dist/*.tar.gz
+
+  # Deploy the docs site for this release. The Release above is created with the
+  # default GITHUB_TOKEN, and token-originated events can't start another
+  # workflow run (GitHub's recursion guard) — so `docs.yml`'s `on: release`
+  # never fired. Invoke it here as a reusable workflow in the same run instead.
+  # Pages scopes are granted at the job level; release.yml's top-level token is
+  # contents:write only, and reusable workflows can't elevate beyond the caller.
+  deploy-docs:
+    needs: release
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/docs.yml
