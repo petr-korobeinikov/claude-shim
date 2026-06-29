@@ -22,3 +22,13 @@ jobs:
       - run: cargo clippy --all-targets -- -D warnings   # [lints.clippy] pedantic in Cargo.toml makes this enforce pedantic
       - run: cargo test
       - run: cargo build
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          install: false
+      - run: mise install rust "cargo:cargo-audit"
+      - run: cargo audit

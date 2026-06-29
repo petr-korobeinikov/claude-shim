@@ -174,6 +174,13 @@ checksum = "sha256:6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f
 url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip"
 provenance = "github-attestations"
 
+[[tools."cargo:cargo-audit"]]
+version = "0.22.2"
+backend = "cargo:cargo-audit"
+
+[tools."cargo:cargo-audit".options]
+locked = "true"
+
 [[tools.node]]
 version = "24.16.0"
 backend = "core:node"

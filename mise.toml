@@ -10,3 +10,4 @@ node = "24.16.0"
 "aqua:nektos/act" = "0.2.89"
 "aqua:orhun/git-cliff" = "2.13.1"
 "aqua:j178/prek" = "0.4.5"
+"cargo:cargo-audit" = { version = "0.22.2", locked = true }
