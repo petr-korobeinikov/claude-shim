@@ -1,5 +1,10 @@
 # claude-shim
 
+[![CI](https://github.com/petr-korobeinikov/claude-shim/actions/workflows/ci.yml/badge.svg)](https://github.com/petr-korobeinikov/claude-shim/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/petr-korobeinikov/claude-shim?include_prereleases)](https://github.com/petr-korobeinikov/claude-shim/releases/latest)
+[![License: MIT](https://img.shields.io/github/license/petr-korobeinikov/claude-shim)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://petr-korobeinikov.github.io/claude-shim/)
+
 Claude Code profile manager:
 swaps `CLAUDE_CONFIG_DIR` per project
 and shows the active profile in the shell prompt.
