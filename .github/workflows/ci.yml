@@ -41,7 +41,7 @@ jobs:
         with:
           install: false
       - run: mise install rust "aqua:taiki-e/cargo-llvm-cov"
-      - run: mise run coverage   # installs llvm-tools, writes codecov.json (main/lib excluded)
+      - run: mise run coverage   # writes codecov.json; glue files excluded (see mise.toml regex)
       - name: Upload to Codecov
         if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
         uses: codecov/codecov-action@v5

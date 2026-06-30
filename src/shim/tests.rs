@@ -1,4 +1,5 @@
 use super::*;
+use std::ffi::OsString;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use tempfile::TempDir;
@@ -183,4 +184,112 @@ fn ensure_shim_replaces_stale_target() {
     ensure_shim_at(&new_exe, &shims).unwrap();
 
     assert_eq!(fs::read_link(shims.join("claude")).unwrap(), new_exe);
+}
+
+// ---- config_dir_for: the shim's credential-isolation decision ----
+//
+// `cwd` is nested under `home` so resolve()'s walk-up is bounded by its
+// stop_at(home) and cannot escape to a stray marker on the real filesystem.
+
+fn write_project_marker(cwd: &Path, name: &str) {
+    let claude = cwd.join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    fs::write(claude.join("claude-shim-profile"), name).unwrap();
+}
+
+fn workdir_under(home: &Path) -> std::path::PathBuf {
+    let cwd = home.join("work");
+    fs::create_dir_all(&cwd).unwrap();
+    cwd
+}
+
+fn dirs<'a>(data: &'a TempDir, config: &'a TempDir, home: &'a TempDir) -> Dirs<'a> {
+    Dirs {
+        data_dir: data.path(),
+        config_dir: config.path(),
+        home: home.path(),
+    }
+}
+
+#[test]
+fn config_dir_for_exports_existing_profile_dir() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = workdir_under(home.path());
+    let dir = crate::profile::profile_dir(data.path(), "foo");
+    fs::create_dir_all(&dir).unwrap();
+    write_project_marker(&cwd, "foo");
+
+    let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
+    let got = config_dir_for(resolution, &dirs(&data, &config, &home), &cwd);
+    assert!(matches!(got, Ok(Some(d)) if d == dir));
+}
+
+#[test]
+fn config_dir_for_refuses_when_configured_profile_is_missing() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = workdir_under(home.path());
+    write_project_marker(&cwd, "ghost"); // marker resolves, but no profile dir exists
+
+    let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
+    match config_dir_for(resolution, &dirs(&data, &config, &home), &cwd) {
+        Err(ShimError::ProfileDirMissing { name, expected, .. }) => {
+            assert_eq!(name, "ghost");
+            assert_eq!(expected, crate::profile::profile_dir(data.path(), "ghost"));
+        }
+        other => panic!("expected ProfileDirMissing, got {other:?}"),
+    }
+}
+
+#[test]
+fn config_dir_for_refuses_when_no_profile_in_scope() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = workdir_under(home.path()); // no marker, no ~/.claude, no default
+
+    let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
+    match config_dir_for(resolution, &dirs(&data, &config, &home), &cwd) {
+        Err(ShimError::NoProfileInScope {
+            default_marker,
+            home: got_home,
+            cwd: got_cwd,
+        }) => {
+            // The remediation hint must point at the real default-profile path,
+            // built from config_dir — not data_dir or a wrong segment.
+            assert_eq!(
+                default_marker,
+                config.path().join("claude-shim").join("default-profile")
+            );
+            assert_eq!(got_home, home.path());
+            assert_eq!(got_cwd, cwd);
+        }
+        other => panic!("expected NoProfileInScope, got {other:?}"),
+    }
+}
+
+#[test]
+fn config_dir_for_allows_legacy_without_override() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = workdir_under(home.path());
+    fs::create_dir_all(home.path().join(".claude")).unwrap(); // legacy ~/.claude present
+
+    let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
+    assert!(matches!(
+        config_dir_for(resolution, &dirs(&data, &config, &home), &cwd),
+        Ok(None)
+    ));
 }

@@ -671,3 +671,602 @@ fn collect_ignores_marker_names_that_point_at_nothing() {
     assert_eq!(got[0].name, "personal");
     assert!(!got[0].is_default && !got[0].is_active);
 }
+
+// ---- command wrappers (the `…_at` inner fns) ----
+
+// `cwd` is nested under `home` so resolve()'s stop_at(home) bounds the walk-up
+// to the temp tree — it can't reach a stray marker on the real filesystem, and
+// the boundary is exercised rather than dead.
+fn workdir(home: &Path) -> PathBuf {
+    let cwd = home.join("work");
+    fs::create_dir_all(&cwd).unwrap();
+    cwd
+}
+
+fn dirs<'a>(data: &'a TempDir, config: &'a TempDir, home: &'a TempDir) -> Dirs<'a> {
+    Dirs {
+        data_dir: data.path(),
+        config_dir: config.path(),
+        home: home.path(),
+    }
+}
+
+#[test]
+fn current_at_prints_active_project_profile() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let cwd = workdir(home.path());
+    make_profile(data.path(), "foo");
+    write_project_marker(&cwd, "foo");
+
+    let mut out = Vec::new();
+    let code = current_at(&dirs(&data, &config, &home), &cwd, &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    assert_eq!(String::from_utf8(out).unwrap(), "foo\n");
+}
+
+#[test]
+fn current_at_is_loud_when_project_profile_missing() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let cwd = workdir(home.path());
+    write_project_marker(&cwd, "ghost"); // referenced, but no profile dir exists
+
+    let mut out = Vec::new();
+    let code = current_at(&dirs(&data, &config, &home), &cwd, &mut out);
+    assert_eq!(code, ExitCode::from(2));
+    assert!(out.is_empty(), "nothing should reach stdout on error");
+}
+
+#[test]
+fn current_at_prints_profile_from_default_marker() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let cwd = workdir(home.path());
+    make_profile(data.path(), "foo");
+    write_default_marker(config.path(), "foo");
+
+    let mut out = Vec::new();
+    let code = current_at(&dirs(&data, &config, &home), &cwd, &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    // The printed name distinguishes "resolved via default marker" from
+    // "nothing in scope" — the latter would print nothing (next test).
+    assert_eq!(String::from_utf8(out).unwrap(), "foo\n");
+}
+
+#[test]
+fn current_at_prints_nothing_when_no_profile_in_scope() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let cwd = workdir(home.path());
+
+    let mut out = Vec::new();
+    let code = current_at(&dirs(&data, &config, &home), &cwd, &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    assert!(out.is_empty(), "no profile in scope → no output");
+}
+
+#[test]
+fn new_at_creates_profile() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        new_at(data.path(), config.path(), "foo", false, false),
+        ExitCode::SUCCESS
+    );
+    assert!(profile_dir(data.path(), "foo").is_dir());
+}
+
+#[test]
+fn new_at_rejects_invalid_name() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        new_at(data.path(), config.path(), "a/b", false, false),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn new_at_fails_when_profile_exists() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    assert_eq!(
+        new_at(data.path(), config.path(), "foo", false, false),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn new_at_with_default_and_statusline_writes_both() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        new_at(data.path(), config.path(), "foo", true, true),
+        ExitCode::SUCCESS
+    );
+    assert!(
+        config
+            .path()
+            .join("claude-shim")
+            .join("default-profile")
+            .is_file()
+    );
+    assert!(
+        profile_dir(data.path(), "foo")
+            .join("settings.json")
+            .is_file()
+    );
+}
+
+#[test]
+fn statusline_at_sets_preset_on_named_profile() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    assert_eq!(
+        statusline_at(
+            &dirs(&data, &config, &home),
+            None,
+            Some("foo"),
+            Some(StatusLinePreset::ProfileIndicator),
+            None,
+            false,
+        ),
+        ExitCode::SUCCESS
+    );
+    assert!(
+        profile_dir(data.path(), "foo")
+            .join("settings.json")
+            .is_file()
+    );
+}
+
+#[test]
+fn statusline_at_rejects_preset_and_command_together() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        statusline_at(
+            &dirs(&data, &config, &home),
+            None,
+            Some("foo"),
+            Some(StatusLinePreset::ProfileIndicator),
+            Some("echo hi".to_owned()),
+            false,
+        ),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn statusline_at_rejects_neither_preset_nor_command() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        statusline_at(
+            &dirs(&data, &config, &home),
+            None,
+            Some("foo"),
+            None,
+            None,
+            false,
+        ),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn statusline_at_fails_when_profile_missing() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        statusline_at(
+            &dirs(&data, &config, &home),
+            None,
+            Some("ghost"),
+            Some(StatusLinePreset::ProfileIndicator),
+            None,
+            false,
+        ),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn statusline_at_resolves_active_profile_from_cwd() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let cwd = workdir(home.path());
+    make_profile(data.path(), "foo");
+    write_project_marker(&cwd, "foo");
+
+    let code = statusline_at(
+        &dirs(&data, &config, &home),
+        Some(&cwd),
+        None,
+        Some(StatusLinePreset::ProfileIndicator),
+        None,
+        false,
+    );
+    assert_eq!(code, ExitCode::SUCCESS);
+    // Resolution must have targeted the active profile 'foo': its settings.json
+    // now exists with a statusLine. Without resolving, nothing would be written.
+    let settings = profile_dir(data.path(), "foo").join("settings.json");
+    assert!(
+        settings.is_file(),
+        "active profile's settings.json should be written"
+    );
+    assert!(
+        fs::read_to_string(&settings)
+            .unwrap()
+            .contains("statusLine"),
+        "settings.json should contain the statusLine key"
+    );
+}
+
+#[test]
+fn statusline_at_fails_when_no_active_profile() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let cwd = workdir(home.path()); // no marker in scope → no active profile
+
+    let code = statusline_at(
+        &dirs(&data, &config, &home),
+        Some(&cwd),
+        None,
+        Some(StatusLinePreset::ProfileIndicator),
+        None,
+        false,
+    );
+    assert_eq!(code, ExitCode::from(2));
+}
+
+#[test]
+fn statusline_at_fails_when_cwd_unavailable() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        statusline_at(
+            &dirs(&data, &config, &home),
+            None,
+            None,
+            Some(StatusLinePreset::ProfileIndicator),
+            None,
+            false,
+        ),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn statusline_at_already_set_without_force_then_force() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    let set = |force| {
+        statusline_at(
+            &dirs(&data, &config, &home),
+            None,
+            Some("foo"),
+            Some(StatusLinePreset::ProfileIndicator),
+            None,
+            force,
+        )
+    };
+    assert_eq!(set(false), ExitCode::SUCCESS);
+    assert_eq!(set(false), ExitCode::from(2));
+    assert_eq!(set(true), ExitCode::SUCCESS);
+}
+
+#[test]
+fn use_profile_at_writes_project_marker() {
+    let data = TempDir::new().unwrap();
+    let cwd = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    assert_eq!(
+        use_profile_at(cwd.path(), data.path(), "foo", false),
+        ExitCode::SUCCESS
+    );
+    assert!(
+        cwd.path()
+            .join(".claude")
+            .join("claude-shim-profile")
+            .is_file()
+    );
+}
+
+#[test]
+fn use_profile_at_rejects_invalid_name() {
+    let data = TempDir::new().unwrap();
+    let cwd = TempDir::new().unwrap();
+    assert_eq!(
+        use_profile_at(cwd.path(), data.path(), "a/b", false),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn use_profile_at_fails_when_profile_missing() {
+    let data = TempDir::new().unwrap();
+    let cwd = TempDir::new().unwrap();
+    assert_eq!(
+        use_profile_at(cwd.path(), data.path(), "ghost", false),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn use_profile_at_fails_when_marker_exists() {
+    let data = TempDir::new().unwrap();
+    let cwd = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    let marker = write_project_marker(cwd.path(), "old");
+    assert_eq!(
+        use_profile_at(cwd.path(), data.path(), "foo", false),
+        ExitCode::from(2)
+    );
+    // The guard must not clobber the existing selection from "old" to "foo".
+    assert_eq!(fs::read_to_string(&marker).unwrap().trim(), "old");
+}
+
+#[test]
+fn list_at_prints_nothing_when_empty() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+
+    let mut out = Vec::new();
+    let code = list_at(&dirs(&data, &config, &home), None, &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    assert!(out.is_empty(), "no profiles → no lines");
+}
+
+#[test]
+fn list_at_prints_sorted_names_with_default_and_active_tags() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let cwd = workdir(home.path());
+    make_profile(data.path(), "foo");
+    make_profile(data.path(), "bar");
+    write_default_marker(config.path(), "foo");
+    write_project_marker(&cwd, "bar");
+
+    let mut out = Vec::new();
+    let code = list_at(&dirs(&data, &config, &home), Some(&cwd), &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    // Sorted; `bar` is active (cwd project marker), `foo` is the global default.
+    assert_eq!(
+        String::from_utf8(out).unwrap(),
+        "bar (active)\nfoo (default)\n"
+    );
+}
+
+#[test]
+fn list_at_prints_combined_tags_for_default_and_active_profile() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let cwd = workdir(home.path());
+    make_profile(data.path(), "foo");
+    make_profile(data.path(), "bar");
+    write_default_marker(config.path(), "foo");
+    write_project_marker(&cwd, "foo"); // foo is both the global default AND active here
+
+    let mut out = Vec::new();
+    let code = list_at(&dirs(&data, &config, &home), Some(&cwd), &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    // foo carries BOTH tags (the `tags.join(", ")` branch); bar is plain; sorted.
+    assert_eq!(
+        String::from_utf8(out).unwrap(),
+        "bar\nfoo (default, active)\n"
+    );
+}
+
+// ---- emit: prints the profile name to stdout, or stays quiet / loud per source ----
+
+#[test]
+fn emit_prints_name_for_existing_project_profile() {
+    let data = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    let mut out = Vec::new();
+    let code = emit("foo", data.path(), ProfileSource::Project, &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    assert_eq!(String::from_utf8(out).unwrap(), "foo\n");
+}
+
+#[test]
+fn emit_prints_name_for_existing_default_profile() {
+    let data = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    let mut out = Vec::new();
+    let code = emit("foo", data.path(), ProfileSource::Default, &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    assert_eq!(String::from_utf8(out).unwrap(), "foo\n");
+}
+
+#[test]
+fn emit_is_loud_on_missing_project_profile() {
+    let data = TempDir::new().unwrap();
+    let mut out = Vec::new();
+    let code = emit("ghost", data.path(), ProfileSource::Project, &mut out);
+    assert_eq!(code, ExitCode::from(2));
+    assert!(out.is_empty());
+}
+
+#[test]
+fn emit_is_silent_on_missing_default_profile() {
+    let data = TempDir::new().unwrap();
+    let mut out = Vec::new();
+    let code = emit("ghost", data.path(), ProfileSource::Default, &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    assert!(out.is_empty());
+}
+
+#[test]
+fn emit_is_loud_on_invalid_project_name() {
+    let data = TempDir::new().unwrap();
+    let mut out = Vec::new();
+    let code = emit("a/b", data.path(), ProfileSource::Project, &mut out);
+    assert_eq!(code, ExitCode::from(2));
+    assert!(out.is_empty());
+}
+
+#[test]
+fn emit_is_silent_on_invalid_default_name() {
+    let data = TempDir::new().unwrap();
+    let mut out = Vec::new();
+    let code = emit("a/b", data.path(), ProfileSource::Default, &mut out);
+    assert_eq!(code, ExitCode::SUCCESS);
+    assert!(out.is_empty());
+}
+
+// A genuine serialize error (not a parse error mislabeled): JSON object keys
+// must be strings, so serializing a map with a tuple key fails to serialize.
+fn serialize_error() -> serde_json::Error {
+    serde_json::to_string(&std::collections::BTreeMap::from([((0_i32, 0_i32), 0_i32)])).unwrap_err()
+}
+
+#[test]
+fn statusline_error_display_renders_alreadyset() {
+    let s = StatuslineError::AlreadySet(PathBuf::from("/x/settings.json")).to_string();
+    assert!(s.contains("statusLine already set"), "{s}");
+    assert!(s.contains("/x/settings.json"), "{s}");
+    assert!(s.contains("--force"), "{s}");
+}
+
+#[test]
+fn statusline_error_display_renders_not_an_object() {
+    let s = StatuslineError::NotAnObject(PathBuf::from("/x/settings.json")).to_string();
+    assert!(s.contains("is not a JSON object"), "{s}");
+    assert!(s.contains("/x/settings.json"), "{s}");
+}
+
+#[test]
+fn statusline_error_display_renders_parse() {
+    let err = serde_json::from_str::<Value>("{").unwrap_err();
+    let s = StatuslineError::Parse(PathBuf::from("/x/settings.json"), err).to_string();
+    assert!(s.contains("failed to parse"), "{s}");
+    assert!(s.contains("/x/settings.json"), "{s}");
+}
+
+#[test]
+fn statusline_error_display_renders_serialize() {
+    let s = StatuslineError::Serialize(serialize_error()).to_string();
+    assert!(s.contains("failed to serialize settings"), "{s}");
+}
+
+#[test]
+fn statusline_error_display_renders_io() {
+    let s = StatuslineError::Io(
+        PathBuf::from("/x/settings.json"),
+        std::io::Error::other("boom"),
+    )
+    .to_string();
+    assert!(s.contains("I/O error"), "{s}");
+    assert!(s.contains("/x/settings.json"), "{s}");
+    assert!(s.contains("boom"), "{s}");
+}
+
+#[test]
+fn set_statusline_treats_whitespace_only_file_as_empty() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("settings.json");
+    fs::write(&path, "   \n\t").unwrap();
+    assert!(set_statusline(&path, &StatusLine::Custom("echo hi".to_owned()), false).is_ok());
+}
+
+#[test]
+fn set_statusline_reports_parse_error_on_malformed_json() {
+    let dir = TempDir::new().unwrap();
+    let path = dir.path().join("settings.json");
+    fs::write(&path, "{ not json").unwrap();
+    let err = set_statusline(&path, &StatusLine::Custom("x".to_owned()), false).unwrap_err();
+    assert!(matches!(err, StatuslineError::Parse(..)));
+}
+
+#[test]
+fn collect_skips_dir_names_that_are_invalid_profiles() {
+    let data = TempDir::new().unwrap();
+    make_profile(data.path(), "valid");
+    let root = data.path().join("claude-shim").join("profiles");
+    fs::create_dir(root.join("a\\b")).unwrap(); // backslash: legal Unix filename, invalid profile name
+    let got = collect(data.path(), None, None).unwrap_or_else(|_| panic!("expected Ok"));
+    let names: Vec<_> = got.iter().map(|p| p.name.as_str()).collect();
+    assert_eq!(names, vec!["valid"]);
+}
+
+#[test]
+fn collect_errors_when_profiles_path_is_a_file() {
+    let data = TempDir::new().unwrap();
+    let cs = data.path().join("claude-shim");
+    fs::create_dir_all(&cs).unwrap();
+    fs::write(cs.join("profiles"), "not a directory").unwrap();
+    assert!(matches!(
+        collect(data.path(), None, None),
+        Err(ListError::Io(..))
+    ));
+}
+
+// ---- stdout write-error handling (the path an infallible Vec<u8> can't reach) ----
+
+/// A sink that always fails, with a configurable error kind.
+struct FailingWriter(std::io::ErrorKind);
+
+impl std::io::Write for FailingWriter {
+    fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
+        Err(std::io::Error::new(self.0, "simulated write failure"))
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn emit_treats_broken_pipe_as_success() {
+    let data = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    let mut out = FailingWriter(std::io::ErrorKind::BrokenPipe);
+    assert_eq!(
+        emit("foo", data.path(), ProfileSource::Project, &mut out),
+        ExitCode::SUCCESS
+    );
+}
+
+#[test]
+fn emit_reports_other_write_errors_as_failure() {
+    let data = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    let mut out = FailingWriter(std::io::ErrorKind::PermissionDenied);
+    assert_eq!(
+        emit("foo", data.path(), ProfileSource::Project, &mut out),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn list_at_reports_write_failure() {
+    let data = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    make_profile(data.path(), "foo");
+    let mut out = FailingWriter(std::io::ErrorKind::PermissionDenied);
+    assert_eq!(
+        list_at(&dirs(&data, &config, &home), None, &mut out),
+        ExitCode::from(2)
+    );
+}

@@ -16,6 +16,6 @@ node = "24.16.0"
 [tasks.coverage]
 description = "Test coverage: write codecov.json (for CI upload) and print a summary"
 run = [
-  "cargo llvm-cov --codecov --output-path target/codecov.json --ignore-filename-regex '(main|lib)\\.rs$'",
-  "cargo llvm-cov report --summary-only --ignore-filename-regex '(main|lib)\\.rs$'",
+  "cargo llvm-cov --codecov --output-path target/codecov.json --ignore-filename-regex '(^|/)(main|lib|dispatch|exec)\\.rs$'",
+  "cargo llvm-cov report --summary-only --ignore-filename-regex '(^|/)(main|lib|dispatch|exec)\\.rs$'",
 ]

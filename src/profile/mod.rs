@@ -1,10 +1,12 @@
-use std::env;
-use std::io;
+use std::fmt;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use directories::BaseDirs;
 use serde_json::{Map, Value, json};
+
+mod dispatch;
+pub(crate) use dispatch::{current, list, new, statusline, use_profile};
 
 pub(crate) enum Resolution {
     Profile(ProfileRef),
@@ -108,32 +110,32 @@ pub(crate) enum ListError {
     Io(PathBuf, io::Error),
 }
 
-pub(crate) fn current() -> ExitCode {
-    let Ok(cwd) = env::current_dir() else {
-        return ExitCode::SUCCESS;
-    };
-    let Some(base) = BaseDirs::new() else {
-        return ExitCode::SUCCESS;
-    };
+/// The three base directories a command resolves against, bundled so call sites
+/// name each one — preventing transposition of the otherwise-interchangeable
+/// `&Path` arguments. `cwd` stays a separate argument: it is required for some
+/// entry points and optional for others.
+#[derive(Copy, Clone)]
+pub(crate) struct Dirs<'a> {
+    pub data_dir: &'a Path,
+    pub config_dir: &'a Path,
+    pub home: &'a Path,
+}
 
-    match resolve(&cwd, base.home_dir(), base.config_dir()) {
-        Resolution::Profile(p) => emit(&p.name, base.data_dir(), p.source),
+fn current_at(dirs: &Dirs, cwd: &Path, out: &mut impl Write) -> ExitCode {
+    match resolve(cwd, dirs.home, dirs.config_dir) {
+        Resolution::Profile(p) => emit(&p.name, dirs.data_dir, p.source, out),
         Resolution::Legacy | Resolution::None => ExitCode::SUCCESS,
     }
 }
 
-pub(crate) fn new(name: &str, set_default: bool, statusline: bool) -> ExitCode {
-    let Some(base) = BaseDirs::new() else {
-        eprintln!("claude-shim: unable to determine base directories");
-        return ExitCode::from(2);
-    };
-    match create(
-        base.data_dir(),
-        base.config_dir(),
-        name,
-        set_default,
-        statusline,
-    ) {
+fn new_at(
+    data_dir: &Path,
+    config_dir: &Path,
+    name: &str,
+    set_default: bool,
+    statusline: bool,
+) -> ExitCode {
+    match create(data_dir, config_dir, name, set_default, statusline) {
         Ok(c) => {
             println!("created profile '{name}' at {}", c.profile_dir.display());
             if let Some(path) = c.statusline_settings {
@@ -160,22 +162,20 @@ pub(crate) fn new(name: &str, set_default: bool, statusline: bool) -> ExitCode {
             ExitCode::from(2)
         }
         Err(NewError::Statusline(e)) => {
-            report_statusline_error(&e);
+            eprintln!("{e}");
             ExitCode::from(2)
         }
     }
 }
 
-pub(crate) fn statusline(
+fn statusline_at(
+    dirs: &Dirs,
+    cwd: Option<&Path>,
     profile: Option<&str>,
     preset: Option<StatusLinePreset>,
     command: Option<String>,
     force: bool,
 ) -> ExitCode {
-    let Some(base) = BaseDirs::new() else {
-        eprintln!("claude-shim: unable to determine base directories");
-        return ExitCode::from(2);
-    };
     let requested = match (preset, command) {
         (Some(preset), None) => StatusLine::Preset(preset),
         (None, Some(command)) => StatusLine::Custom(command),
@@ -191,11 +191,11 @@ pub(crate) fn statusline(
     let name = if let Some(name) = profile {
         name.to_owned()
     } else {
-        let Ok(cwd) = env::current_dir() else {
+        let Some(cwd) = cwd else {
             eprintln!("claude-shim: unable to read current directory");
             return ExitCode::from(2);
         };
-        let Some(name) = active_profile(&cwd, base.home_dir(), base.config_dir()) else {
+        let Some(name) = active_profile(cwd, dirs.home, dirs.config_dir) else {
             eprintln!("claude-shim: no active profile here — pass --profile <name>");
             return ExitCode::from(2);
         };
@@ -205,7 +205,7 @@ pub(crate) fn statusline(
         eprintln!("claude-shim: invalid profile name '{name}'");
         return ExitCode::from(2);
     }
-    let dir = profile_dir(base.data_dir(), &name);
+    let dir = profile_dir(dirs.data_dir, &name);
     if !dir.is_dir() {
         eprintln!(
             "claude-shim: profile '{name}' does not exist at {}",
@@ -223,22 +223,14 @@ pub(crate) fn statusline(
             ExitCode::SUCCESS
         }
         Err(e) => {
-            report_statusline_error(&e);
+            eprintln!("{e}");
             ExitCode::from(2)
         }
     }
 }
 
-pub(crate) fn use_profile(name: &str, workspace: bool) -> ExitCode {
-    let Ok(cwd) = env::current_dir() else {
-        eprintln!("claude-shim: unable to read current directory");
-        return ExitCode::from(2);
-    };
-    let Some(base) = BaseDirs::new() else {
-        eprintln!("claude-shim: unable to determine base directories");
-        return ExitCode::from(2);
-    };
-    match apply(&cwd, base.data_dir(), name, workspace) {
+fn use_profile_at(cwd: &Path, data_dir: &Path, name: &str, workspace: bool) -> ExitCode {
+    match apply(cwd, data_dir, name, workspace) {
         Ok(a) => {
             println!("set profile '{name}' at {}", a.marker_path.display());
             ExitCode::SUCCESS
@@ -269,23 +261,15 @@ pub(crate) fn use_profile(name: &str, workspace: bool) -> ExitCode {
     }
 }
 
-pub(crate) fn list() -> ExitCode {
-    let Some(base) = BaseDirs::new() else {
-        eprintln!("claude-shim: unable to determine base directories");
-        return ExitCode::from(2);
-    };
-    let default_name = read_marker_file(
-        &base
-            .config_dir()
-            .join("claude-shim")
-            .join("default-profile"),
-    );
-    let active_name = env::current_dir().ok().and_then(|cwd| {
-        active_profile(&cwd, base.home_dir(), base.config_dir())
-            .filter(|name| profile_dir(base.data_dir(), name).is_dir())
+fn list_at(dirs: &Dirs, cwd: Option<&Path>, out: &mut impl Write) -> ExitCode {
+    let default_name =
+        read_marker_file(&dirs.config_dir.join("claude-shim").join("default-profile"));
+    let active_name = cwd.and_then(|cwd| {
+        active_profile(cwd, dirs.home, dirs.config_dir)
+            .filter(|name| profile_dir(dirs.data_dir, name).is_dir())
     });
     match collect(
-        base.data_dir(),
+        dirs.data_dir,
         default_name.as_deref(),
         active_name.as_deref(),
     ) {
@@ -298,10 +282,13 @@ pub(crate) fn list() -> ExitCode {
                 if p.is_active {
                     tags.push("active");
                 }
-                if tags.is_empty() {
-                    println!("{}", p.name);
+                let line = if tags.is_empty() {
+                    p.name.clone()
                 } else {
-                    println!("{} ({})", p.name, tags.join(", "));
+                    format!("{} ({})", p.name, tags.join(", "))
+                };
+                if let Err(e) = writeln!(out, "{line}") {
+                    return on_write_error(&e);
                 }
             }
             ExitCode::SUCCESS
@@ -472,23 +459,18 @@ fn write_settings(path: &Path, root: Map<String, Value>) -> Result<(), Statuslin
     std::fs::write(path, serialized).map_err(|e| StatuslineError::Io(path.to_path_buf(), e))
 }
 
-fn report_statusline_error(e: &StatuslineError) {
-    match e {
-        StatuslineError::AlreadySet(p) => eprintln!(
-            "claude-shim: statusLine already set in {} — pass --force to overwrite",
-            p.display()
-        ),
-        StatuslineError::NotAnObject(p) => {
-            eprintln!("claude-shim: {} is not a JSON object", p.display());
-        }
-        StatuslineError::Parse(p, err) => {
-            eprintln!("claude-shim: failed to parse {}: {err}", p.display());
-        }
-        StatuslineError::Serialize(err) => {
-            eprintln!("claude-shim: failed to serialize settings: {err}");
-        }
-        StatuslineError::Io(p, err) => {
-            eprintln!("claude-shim: I/O error at {}: {err}", p.display());
+impl fmt::Display for StatuslineError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::AlreadySet(p) => write!(
+                f,
+                "claude-shim: statusLine already set in {} — pass --force to overwrite",
+                p.display()
+            ),
+            Self::NotAnObject(p) => write!(f, "claude-shim: {} is not a JSON object", p.display()),
+            Self::Parse(p, err) => write!(f, "claude-shim: failed to parse {}: {err}", p.display()),
+            Self::Serialize(err) => write!(f, "claude-shim: failed to serialize settings: {err}"),
+            Self::Io(p, err) => write!(f, "claude-shim: I/O error at {}: {err}", p.display()),
         }
     }
 }
@@ -603,7 +585,20 @@ fn read_marker_file(path: &Path) -> Option<String> {
     }
 }
 
-fn emit(name: &str, data_dir: &Path, source: ProfileSource) -> ExitCode {
+/// Map a stdout write failure to an exit code: a closed pipe (e.g. piping into
+/// `head`) is a clean stop reported as success; any other write error is
+/// surfaced and fails. Used by the output commands (`current`/`list`); the
+/// post-action confirmation messages elsewhere keep plain `println!`.
+fn on_write_error(e: &io::Error) -> ExitCode {
+    if e.kind() == io::ErrorKind::BrokenPipe {
+        ExitCode::SUCCESS
+    } else {
+        eprintln!("claude-shim: failed to write output: {e}");
+        ExitCode::from(2)
+    }
+}
+
+fn emit(name: &str, data_dir: &Path, source: ProfileSource, out: &mut impl Write) -> ExitCode {
     let loud = matches!(source, ProfileSource::Project);
     if !is_valid_profile_name(name) {
         if loud {
@@ -614,8 +609,10 @@ fn emit(name: &str, data_dir: &Path, source: ProfileSource) -> ExitCode {
     }
     let dir = profile_dir(data_dir, name);
     if dir.is_dir() {
-        println!("{name}");
-        ExitCode::SUCCESS
+        match writeln!(out, "{name}") {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => on_write_error(&e),
+        }
     } else if loud {
         eprintln!(
             "claude-shim: profile '{name}' is referenced but {} does not exist",

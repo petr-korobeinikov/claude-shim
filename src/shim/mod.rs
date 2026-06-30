@@ -1,73 +1,15 @@
-use std::convert::Infallible;
 use std::env;
-use std::ffi::{OsStr, OsString};
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
 
-use directories::BaseDirs;
+use crate::profile::{self, Dirs, Resolution};
 
-use crate::profile::{self, Resolution};
-
-#[must_use]
-pub fn run() -> ExitCode {
-    match try_run() {
-        Ok(never) => match never {},
-        Err(e) => {
-            eprintln!("{e}");
-            ExitCode::from(2)
-        }
-    }
-}
-
-fn try_run() -> Result<Infallible, ShimError> {
-    let base = BaseDirs::new().ok_or(ShimError::BaseDirsUnavailable)?;
-    let cwd = env::current_dir().map_err(ShimError::CwdUnreadable)?;
-    let path = env::var_os("PATH").ok_or(ShimError::PathUnset)?;
-    let self_dir = env::current_exe()
-        .ok()
-        .and_then(|p| p.parent().map(Path::to_path_buf));
-
-    let real_claude = find_real_claude(&path, self_dir.as_deref())?;
-    let args: Vec<OsString> = env::args_os().skip(1).collect();
-    let mut cmd = Command::new(&real_claude);
-    cmd.args(&args);
-
-    match profile::resolve(&cwd, base.home_dir(), base.config_dir()) {
-        Resolution::Profile(p) => {
-            let dir = profile::profile_dir(base.data_dir(), &p.name);
-            if !dir.is_dir() {
-                return Err(ShimError::ProfileDirMissing {
-                    name: p.name,
-                    marker: p.marker,
-                    expected: dir,
-                });
-            }
-            cmd.env("CLAUDE_CONFIG_DIR", &dir);
-        }
-        Resolution::Legacy => {}
-        Resolution::None => {
-            let default_marker = base
-                .config_dir()
-                .join("claude-shim")
-                .join("default-profile");
-            return Err(ShimError::NoProfileInScope {
-                cwd,
-                home: base.home_dir().to_path_buf(),
-                default_marker,
-            });
-        }
-    }
-
-    let err = cmd.exec();
-    Err(ShimError::ExecFailed {
-        path: real_claude,
-        error: err,
-    })
-}
+mod exec;
+pub(crate) use exec::ensure_shim;
+pub use exec::run;
 
 #[derive(Debug)]
 enum ShimError {
@@ -171,24 +113,34 @@ fn is_executable(p: &Path) -> bool {
         .is_ok_and(|m| m.is_file() && (m.permissions().mode() & 0o111) != 0)
 }
 
-pub(crate) fn ensure_shim() {
-    let Some(base) = BaseDirs::new() else {
-        eprintln!("claude-shim: cannot resolve base directories for shim");
-        return;
-    };
-    let exe = match env::current_exe() {
-        Ok(p) => p,
-        Err(e) => {
-            eprintln!("claude-shim: cannot determine current executable for shim: {e}");
-            return;
+/// Decide the `CLAUDE_CONFIG_DIR` for a resolved profile, or refuse to run.
+/// `Ok(Some(dir))` → export it; `Ok(None)` → legacy layout, no override;
+/// `Err` → refuse (no profile in scope, or the configured profile is missing).
+/// This is the shim's credential-isolation decision — kept here and unit-tested,
+/// not inline in the env/exec glue of `exec.rs`.
+fn config_dir_for(
+    resolution: Resolution,
+    dirs: &Dirs,
+    cwd: &Path,
+) -> Result<Option<PathBuf>, ShimError> {
+    match resolution {
+        Resolution::Profile(p) => {
+            let dir = profile::profile_dir(dirs.data_dir, &p.name);
+            if !dir.is_dir() {
+                return Err(ShimError::ProfileDirMissing {
+                    name: p.name,
+                    marker: p.marker,
+                    expected: dir,
+                });
+            }
+            Ok(Some(dir))
         }
-    };
-    let shims = base.data_dir().join("claude-shim").join("shims");
-    if let Err(e) = ensure_shim_at(&exe, &shims) {
-        eprintln!(
-            "claude-shim: failed to ensure shim symlink at {}: {e}",
-            shims.display()
-        );
+        Resolution::Legacy => Ok(None),
+        Resolution::None => Err(ShimError::NoProfileInScope {
+            cwd: cwd.to_path_buf(),
+            home: dirs.home.to_path_buf(),
+            default_marker: dirs.config_dir.join("claude-shim").join("default-profile"),
+        }),
     }
 }
 
