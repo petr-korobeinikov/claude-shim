@@ -32,3 +32,20 @@ jobs:
           install: false
       - run: mise install rust "cargo:cargo-audit"
       - run: cargo audit
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          install: false
+      - run: mise install rust "aqua:taiki-e/cargo-llvm-cov"
+      - run: mise run coverage   # installs llvm-tools, writes codecov.json (main/lib excluded)
+      - name: Upload to Codecov
+        if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+        uses: codecov/codecov-action@v5
+        with:
+          files: target/codecov.json
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false   # a Codecov outage (or missing token) must not fail the gate

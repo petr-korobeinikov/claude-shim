@@ -1,6 +1,7 @@
 # claude-shim
 
 [![CI](https://github.com/petr-korobeinikov/claude-shim/actions/workflows/ci.yml/badge.svg)](https://github.com/petr-korobeinikov/claude-shim/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/petr-korobeinikov/claude-shim/graph/badge.svg)](https://codecov.io/gh/petr-korobeinikov/claude-shim)
 [![Latest release](https://img.shields.io/github/v/release/petr-korobeinikov/claude-shim?include_prereleases)](https://github.com/petr-korobeinikov/claude-shim/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/petr-korobeinikov/claude-shim)](LICENSE)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://petr-korobeinikov.github.io/claude-shim/)

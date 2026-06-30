@@ -3,11 +3,19 @@ disable_backends = ["ubi", "asdf"]
 lockfile = true
 
 [tools]
-rust = { version = "1.95.0", components = "rustfmt,clippy" }
+rust = { version = "1.95.0", components = "rustfmt,clippy,llvm-tools-preview" }
 node = "24.16.0"
 "aqua:gittower/git-flow-next" = "1.1.0"
-"aqua:rhysd/actionlint" = "1.7.12"
+"aqua:j178/prek" = "0.4.5"
 "aqua:nektos/act" = "0.2.89"
 "aqua:orhun/git-cliff" = "2.13.1"
-"aqua:j178/prek" = "0.4.5"
+"aqua:rhysd/actionlint" = "1.7.12"
+"aqua:taiki-e/cargo-llvm-cov" = "0.8.7"
 "cargo:cargo-audit" = { version = "0.22.2", locked = true }
+
+[tasks.coverage]
+description = "Test coverage: write codecov.json (for CI upload) and print a summary"
+run = [
+  "cargo llvm-cov --codecov --output-path target/codecov.json --ignore-filename-regex '(main|lib)\\.rs$'",
+  "cargo llvm-cov report --summary-only --ignore-filename-regex '(main|lib)\\.rs$'",
+]
