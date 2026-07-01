@@ -227,3 +227,31 @@ fn errors_render_a_reason() {
     assert!(MarkerError::NotAnObject.to_string().contains("object"));
     assert!(MarkerError::MissingName.to_string().contains("name"));
 }
+
+#[test]
+fn project_body_round_trips_name_only() {
+    let m = parse_project_marker(&project_body("personal", None)).unwrap();
+    assert_eq!(m.name, "personal");
+    assert_eq!(m.effort, None);
+}
+
+#[test]
+fn project_body_round_trips_with_effort() {
+    let m = parse_project_marker(&project_body("personal", Some(EffortLevel::Max))).unwrap();
+    assert_eq!(m.name, "personal");
+    assert_eq!(m.effort, Some(EffortLevel::Max));
+}
+
+#[test]
+fn profile_default_body_round_trips() {
+    let c = parse_profile_config(&profile_default_body(EffortLevel::High));
+    assert_eq!(c.effort, Some(EffortLevel::High));
+    assert!(c.warnings.is_empty());
+}
+
+#[test]
+fn bodies_are_pretty_and_newline_terminated() {
+    let body = project_body("personal", None);
+    assert!(body.contains("\n  \"name\""));
+    assert!(body.ends_with("}\n"));
+}

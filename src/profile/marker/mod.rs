@@ -97,9 +97,26 @@ pub(crate) fn parse_profile_config(text: &str) -> ProfileConfig {
 }
 
 #[must_use]
-pub(crate) fn project_body(name: &str) -> String {
-    let mut body = serde_json::to_string_pretty(&serde_json::json!({ "name": name }))
-        .expect("serializing a marker object is infallible");
+pub(crate) fn project_body(name: &str, effort: Option<EffortLevel>) -> String {
+    let mut obj = Map::new();
+    obj.insert("name".to_owned(), Value::String(name.to_owned()));
+    if let Some(level) = effort {
+        obj.insert(
+            "effort".to_owned(),
+            Value::String(level.as_token().to_owned()),
+        );
+    }
+    to_pretty(&Value::Object(obj))
+}
+
+#[must_use]
+pub(crate) fn profile_default_body(effort: EffortLevel) -> String {
+    to_pretty(&serde_json::json!({ "effort": effort.as_token() }))
+}
+
+fn to_pretty(value: &Value) -> String {
+    let mut body =
+        serde_json::to_string_pretty(value).expect("serializing a marker object is infallible");
     body.push('\n');
     body
 }

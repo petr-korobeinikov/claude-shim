@@ -36,7 +36,7 @@ fn write_project_marker(dir: &Path, name: &str) -> PathBuf {
     let claude = dir.join(".claude");
     fs::create_dir_all(&claude).unwrap();
     let marker = claude.join("claude-shim.json");
-    fs::write(&marker, project_body(name)).unwrap();
+    fs::write(&marker, project_body(name, None)).unwrap();
     marker
 }
 
@@ -120,7 +120,7 @@ fn find_project_marker_bounded_stops_before_bound() {
 
 fn write_workspace_marker(dir: &Path, name: &str) -> PathBuf {
     let marker = dir.join(".claude-shim.json");
-    fs::write(&marker, project_body(name)).unwrap();
+    fs::write(&marker, project_body(name, None)).unwrap();
     marker
 }
 
@@ -488,6 +488,313 @@ fn resolve_effort_carries_project_marker_warning_paired_with_marker() {
     );
 }
 
+// phase 4: writing effort via the CLI paths
+
+#[test]
+fn create_with_effort_writes_profile_default_config() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let c = create(
+        data.path(),
+        config.path(),
+        "personal",
+        false,
+        false,
+        Some(EffortLevel::High),
+    )
+    .unwrap_or_else(|_| panic!("expected Ok"));
+    let path = c.effort_config.expect("effort config expected");
+    assert_eq!(path, c.profile_dir.join("claude-shim.json"));
+    let v: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert_eq!(v["effort"], "high");
+    assert!(v.get("name").is_none());
+}
+
+#[test]
+fn create_without_effort_omits_config() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let c = create(data.path(), config.path(), "personal", false, false, None)
+        .unwrap_or_else(|_| panic!("expected Ok"));
+    assert!(c.effort_config.is_none());
+    assert!(!c.profile_dir.join("claude-shim.json").exists());
+}
+
+#[test]
+fn apply_with_effort_writes_name_and_effort() {
+    let cwd = TempDir::new().unwrap();
+    let data = TempDir::new().unwrap();
+    make_profile(data.path(), "work");
+    apply(
+        cwd.path(),
+        data.path(),
+        "work",
+        false,
+        Some(EffortLevel::Max),
+    )
+    .unwrap_or_else(|_| panic!("expected Ok"));
+    let hit = find_project_marker(cwd.path(), None).unwrap().unwrap();
+    assert_eq!(hit.name, "work");
+    assert_eq!(hit.effort, Some(EffortLevel::Max));
+}
+
+fn test_dirs<'a>(data: &'a TempDir, config: &'a TempDir, home: &'a TempDir) -> Dirs<'a> {
+    Dirs {
+        data_dir: data.path(),
+        config_dir: config.path(),
+        home: home.path(),
+    }
+}
+
+#[test]
+fn effort_at_sets_named_profile() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    make_profile(data.path(), "work");
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, None, EffortLevel::High, Some("work"), false),
+        ExitCode::SUCCESS
+    );
+    let config_file = profile_dir(data.path(), "work").join("claude-shim.json");
+    let v: Value = serde_json::from_str(&fs::read_to_string(&config_file).unwrap()).unwrap();
+    assert_eq!(v["effort"], "high");
+}
+
+#[test]
+fn effort_at_fails_for_missing_profile() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, None, EffortLevel::High, Some("ghost"), false),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn effort_at_rejects_invalid_name() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, None, EffortLevel::High, Some("a/b"), false),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn effort_at_fails_without_active_profile_or_flag() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = home.path().join("work");
+    fs::create_dir_all(&cwd).unwrap();
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, Some(&cwd), EffortLevel::High, None, false),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn effort_at_sets_active_profile_without_flag() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    make_profile(data.path(), "work");
+    let cwd = home.path().join("proj");
+    fs::create_dir_all(&cwd).unwrap();
+    write_project_marker(&cwd, "work");
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, Some(&cwd), EffortLevel::Max, None, false),
+        ExitCode::SUCCESS
+    );
+    let cfg = profile_dir(data.path(), "work").join("claude-shim.json");
+    let v: Value = serde_json::from_str(&fs::read_to_string(&cfg).unwrap()).unwrap();
+    assert_eq!(v["effort"], "max");
+}
+
+#[test]
+fn effort_at_overwrites_existing_default() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    make_profile(data.path(), "work");
+    let dirs = test_dirs(&data, &config, &home);
+    effort_at(&dirs, None, EffortLevel::Low, Some("work"), false);
+    assert_eq!(
+        effort_at(&dirs, None, EffortLevel::Max, Some("work"), false),
+        ExitCode::SUCCESS
+    );
+    let cfg = profile_dir(data.path(), "work").join("claude-shim.json");
+    let v: Value = serde_json::from_str(&fs::read_to_string(&cfg).unwrap()).unwrap();
+    assert_eq!(v["effort"], "max");
+}
+
+#[test]
+fn apply_workspace_with_effort_round_trips() {
+    let cwd = TempDir::new().unwrap();
+    let data = TempDir::new().unwrap();
+    make_profile(data.path(), "work");
+    apply(
+        cwd.path(),
+        data.path(),
+        "work",
+        true,
+        Some(EffortLevel::High),
+    )
+    .unwrap_or_else(|_| panic!("expected Ok"));
+    let hit = find_project_marker(cwd.path(), None).unwrap().unwrap();
+    assert_eq!(hit.name, "work");
+    assert_eq!(hit.effort, Some(EffortLevel::High));
+    assert_eq!(hit.path, cwd.path().join(".claude-shim.json"));
+}
+
+// effort_at --local: update the resolved project/workspace binding, keep its name
+
+#[test]
+fn effort_at_local_updates_project_marker() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = home.path().join("proj");
+    fs::create_dir_all(&cwd).unwrap();
+    let marker = write_project_marker(&cwd, "personal");
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, Some(&cwd), EffortLevel::High, None, true),
+        ExitCode::SUCCESS
+    );
+    let hit = find_project_marker(&cwd, Some(home.path()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(hit.name, "personal");
+    assert_eq!(hit.effort, Some(EffortLevel::High));
+    assert_eq!(hit.path, marker);
+}
+
+#[test]
+fn effort_at_local_updates_workspace_marker() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = home.path().join("ws");
+    fs::create_dir_all(&cwd).unwrap();
+    let marker = write_workspace_marker(&cwd, "team");
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, Some(&cwd), EffortLevel::Max, None, true),
+        ExitCode::SUCCESS
+    );
+    let hit = find_project_marker(&cwd, Some(home.path()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(hit.name, "team");
+    assert_eq!(hit.effort, Some(EffortLevel::Max));
+    assert_eq!(hit.path, marker);
+}
+
+#[test]
+fn effort_at_local_updates_nearest_binding_up_the_tree() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let ws = home.path().join("ws");
+    let cwd = ws.join("repo/sub");
+    fs::create_dir_all(&cwd).unwrap();
+    let marker = write_workspace_marker(&ws, "team");
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, Some(&cwd), EffortLevel::High, None, true),
+        ExitCode::SUCCESS
+    );
+    let v: Value = serde_json::from_str(&fs::read_to_string(&marker).unwrap()).unwrap();
+    assert_eq!(v["name"], "team");
+    assert_eq!(v["effort"], "high");
+}
+
+#[test]
+fn effort_at_local_fails_without_binding() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = home.path().join("bare");
+    fs::create_dir_all(&cwd).unwrap();
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, Some(&cwd), EffortLevel::High, None, true),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn effort_at_local_refuses_malformed_marker_without_clobbering() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = home.path().join("proj");
+    let claude = cwd.join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    let marker = claude.join("claude-shim.json");
+    fs::write(&marker, "{ not json").unwrap();
+    let before = fs::read_to_string(&marker).unwrap();
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, Some(&cwd), EffortLevel::High, None, true),
+        ExitCode::from(2)
+    );
+    assert_eq!(fs::read_to_string(&marker).unwrap(), before);
+}
+
+#[test]
+fn effort_at_local_overwrites_existing_effort() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = home.path().join("proj");
+    fs::create_dir_all(&cwd).unwrap();
+    write_project_marker_with_effort(&cwd, "personal", "low");
+    let dirs = test_dirs(&data, &config, &home);
+    assert_eq!(
+        effort_at(&dirs, Some(&cwd), EffortLevel::Max, None, true),
+        ExitCode::SUCCESS
+    );
+    let hit = find_project_marker(&cwd, Some(home.path()))
+        .unwrap()
+        .unwrap();
+    assert_eq!(hit.name, "personal");
+    assert_eq!(hit.effort, Some(EffortLevel::Max));
+}
+
 #[test]
 fn read_marker_file_returns_none_for_missing_file() {
     let dir = TempDir::new().unwrap();
@@ -514,9 +821,10 @@ fn read_marker_file_rejects_empty() {
 fn create_makes_profile_directory() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
-    let c = create(data.path(), config.path(), "personal", false, false).unwrap_or_else(|_| {
-        panic!("expected Ok");
-    });
+    let c =
+        create(data.path(), config.path(), "personal", false, false, None).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
     assert!(c.profile_dir.is_dir());
     assert_eq!(c.profile_dir, profile_dir(data.path(), "personal"));
     assert!(c.default_marker.is_none());
@@ -527,9 +835,10 @@ fn create_makes_profile_directory() {
 fn create_seeds_claude_md_in_profile_dir() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
-    let c = create(data.path(), config.path(), "personal", false, false).unwrap_or_else(|_| {
-        panic!("expected Ok");
-    });
+    let c =
+        create(data.path(), config.path(), "personal", false, false, None).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
     let claude_md = c.profile_dir.join("CLAUDE.md");
     assert!(claude_md.is_file());
     assert_eq!(fs::read_to_string(&claude_md).unwrap(), PROFILE_CLAUDE_MD);
@@ -539,9 +848,10 @@ fn create_seeds_claude_md_in_profile_dir() {
 fn create_with_default_writes_default_marker() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
-    let c = create(data.path(), config.path(), "personal", true, false).unwrap_or_else(|_| {
-        panic!("expected Ok");
-    });
+    let c =
+        create(data.path(), config.path(), "personal", true, false, None).unwrap_or_else(|_| {
+            panic!("expected Ok");
+        });
     let marker = c.default_marker.expect("default marker expected");
     assert_eq!(
         marker,
@@ -555,7 +865,7 @@ fn create_rejects_invalid_name() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
     assert!(matches!(
-        create(data.path(), config.path(), "a/b", false, false),
+        create(data.path(), config.path(), "a/b", false, false, None),
         Err(NewError::InvalidName)
     ));
 }
@@ -567,7 +877,7 @@ fn create_fails_when_profile_already_exists() {
     let existing = profile_dir(data.path(), "personal");
     fs::create_dir_all(&existing).unwrap();
 
-    match create(data.path(), config.path(), "personal", false, false) {
+    match create(data.path(), config.path(), "personal", false, false, None) {
         Err(NewError::AlreadyExists(p)) => assert_eq!(p, existing),
         _ => panic!("expected AlreadyExists"),
     }
@@ -579,7 +889,7 @@ fn create_does_not_touch_default_when_profile_exists() {
     let config = TempDir::new().unwrap();
     fs::create_dir_all(profile_dir(data.path(), "personal")).unwrap();
 
-    let _ = create(data.path(), config.path(), "personal", true, false);
+    let _ = create(data.path(), config.path(), "personal", true, false, None);
     assert!(!config.path().join("claude-shim").exists());
 }
 
@@ -587,7 +897,7 @@ fn create_does_not_touch_default_when_profile_exists() {
 fn create_with_statusline_writes_settings_json() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
-    let c = create(data.path(), config.path(), "personal", false, true)
+    let c = create(data.path(), config.path(), "personal", false, true, None)
         .unwrap_or_else(|_| panic!("expected Ok"));
     let settings = c.profile_dir.join("settings.json");
     assert_eq!(c.statusline_settings.as_deref(), Some(settings.as_path()));
@@ -606,7 +916,7 @@ fn create_with_statusline_writes_settings_json() {
 fn create_without_statusline_omits_settings_json() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
-    let c = create(data.path(), config.path(), "personal", false, false)
+    let c = create(data.path(), config.path(), "personal", false, false, None)
         .unwrap_or_else(|_| panic!("expected Ok"));
     assert!(c.statusline_settings.is_none());
     assert!(!c.profile_dir.join("settings.json").exists());
@@ -737,7 +1047,7 @@ fn apply_writes_project_marker_by_default() {
     let data = TempDir::new().unwrap();
     make_profile(data.path(), "work");
 
-    let a = apply(cwd.path(), data.path(), "work", false).unwrap_or_else(|_| {
+    let a = apply(cwd.path(), data.path(), "work", false, None).unwrap_or_else(|_| {
         panic!("expected Ok");
     });
     assert_eq!(
@@ -758,7 +1068,7 @@ fn apply_creates_dot_claude_when_missing() {
     make_profile(data.path(), "work");
     assert!(!cwd.path().join(".claude").exists());
 
-    apply(cwd.path(), data.path(), "work", false).unwrap_or_else(|_| {
+    apply(cwd.path(), data.path(), "work", false, None).unwrap_or_else(|_| {
         panic!("expected Ok");
     });
     assert!(cwd.path().join(".claude").is_dir());
@@ -770,7 +1080,7 @@ fn apply_writes_workspace_marker_with_flag() {
     let data = TempDir::new().unwrap();
     make_profile(data.path(), "work");
 
-    let a = apply(cwd.path(), data.path(), "work", true).unwrap_or_else(|_| {
+    let a = apply(cwd.path(), data.path(), "work", true, None).unwrap_or_else(|_| {
         panic!("expected Ok");
     });
     assert_eq!(a.marker_path, cwd.path().join(".claude-shim.json"));
@@ -786,7 +1096,7 @@ fn apply_rejects_invalid_name() {
     let cwd = TempDir::new().unwrap();
     let data = TempDir::new().unwrap();
     assert!(matches!(
-        apply(cwd.path(), data.path(), "a/b", false),
+        apply(cwd.path(), data.path(), "a/b", false, None),
         Err(UseError::InvalidName)
     ));
 }
@@ -795,7 +1105,7 @@ fn apply_rejects_invalid_name() {
 fn apply_fails_when_profile_missing() {
     let cwd = TempDir::new().unwrap();
     let data = TempDir::new().unwrap();
-    match apply(cwd.path(), data.path(), "ghost", false) {
+    match apply(cwd.path(), data.path(), "ghost", false, None) {
         Err(UseError::ProfileNotFound(p)) => assert_eq!(p, profile_dir(data.path(), "ghost")),
         _ => panic!("expected ProfileNotFound"),
     }
@@ -808,7 +1118,7 @@ fn apply_fails_when_project_marker_already_exists() {
     make_profile(data.path(), "work");
     let existing = write_project_marker(cwd.path(), "old");
 
-    match apply(cwd.path(), data.path(), "work", false) {
+    match apply(cwd.path(), data.path(), "work", false, None) {
         Err(UseError::MarkerAlreadyExists(p)) => assert_eq!(p, existing),
         _ => panic!("expected MarkerAlreadyExists"),
     }
@@ -821,7 +1131,7 @@ fn apply_fails_when_workspace_marker_already_exists() {
     make_profile(data.path(), "work");
     let existing = write_workspace_marker(cwd.path(), "old");
 
-    match apply(cwd.path(), data.path(), "work", true) {
+    match apply(cwd.path(), data.path(), "work", true, None) {
         Err(UseError::MarkerAlreadyExists(p)) => assert_eq!(p, existing),
         _ => panic!("expected MarkerAlreadyExists"),
     }
@@ -982,7 +1292,7 @@ fn new_at_creates_profile() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
     assert_eq!(
-        new_at(data.path(), config.path(), "foo", false, false),
+        new_at(data.path(), config.path(), "foo", false, false, None),
         ExitCode::SUCCESS
     );
     assert!(profile_dir(data.path(), "foo").is_dir());
@@ -993,7 +1303,7 @@ fn new_at_rejects_invalid_name() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
     assert_eq!(
-        new_at(data.path(), config.path(), "a/b", false, false),
+        new_at(data.path(), config.path(), "a/b", false, false, None),
         ExitCode::from(2)
     );
 }
@@ -1004,7 +1314,7 @@ fn new_at_fails_when_profile_exists() {
     let config = TempDir::new().unwrap();
     make_profile(data.path(), "foo");
     assert_eq!(
-        new_at(data.path(), config.path(), "foo", false, false),
+        new_at(data.path(), config.path(), "foo", false, false, None),
         ExitCode::from(2)
     );
 }
@@ -1014,7 +1324,7 @@ fn new_at_with_default_and_statusline_writes_both() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
     assert_eq!(
-        new_at(data.path(), config.path(), "foo", true, true),
+        new_at(data.path(), config.path(), "foo", true, true, None),
         ExitCode::SUCCESS
     );
     assert!(
@@ -1205,7 +1515,7 @@ fn use_profile_at_writes_project_marker() {
     let cwd = TempDir::new().unwrap();
     make_profile(data.path(), "foo");
     assert_eq!(
-        use_profile_at(cwd.path(), data.path(), "foo", false),
+        use_profile_at(cwd.path(), data.path(), "foo", false, None),
         ExitCode::SUCCESS
     );
     assert!(
@@ -1221,7 +1531,7 @@ fn use_profile_at_rejects_invalid_name() {
     let data = TempDir::new().unwrap();
     let cwd = TempDir::new().unwrap();
     assert_eq!(
-        use_profile_at(cwd.path(), data.path(), "a/b", false),
+        use_profile_at(cwd.path(), data.path(), "a/b", false, None),
         ExitCode::from(2)
     );
 }
@@ -1231,7 +1541,7 @@ fn use_profile_at_fails_when_profile_missing() {
     let data = TempDir::new().unwrap();
     let cwd = TempDir::new().unwrap();
     assert_eq!(
-        use_profile_at(cwd.path(), data.path(), "ghost", false),
+        use_profile_at(cwd.path(), data.path(), "ghost", false, None),
         ExitCode::from(2)
     );
 }
@@ -1243,7 +1553,7 @@ fn use_profile_at_fails_when_marker_exists() {
     make_profile(data.path(), "foo");
     write_project_marker(cwd.path(), "old");
     assert_eq!(
-        use_profile_at(cwd.path(), data.path(), "foo", false),
+        use_profile_at(cwd.path(), data.path(), "foo", false, None),
         ExitCode::from(2)
     );
     // The guard must not clobber the existing selection from "old" to "foo".

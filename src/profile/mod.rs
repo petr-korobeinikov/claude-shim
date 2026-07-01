@@ -7,7 +7,7 @@ use serde_json::{Map, Value, json};
 
 mod dispatch;
 mod marker;
-pub(crate) use dispatch::{current, list, new, statusline, use_profile};
+pub(crate) use dispatch::{current, effort, list, new, statusline, use_profile};
 pub(crate) use marker::{EffortLevel, MarkerWarning, project_body};
 
 pub(crate) enum Resolution {
@@ -53,6 +53,7 @@ pub(crate) struct Created {
     pub profile_dir: PathBuf,
     pub default_marker: Option<PathBuf>,
     pub statusline_settings: Option<PathBuf>,
+    pub effort_config: Option<PathBuf>,
 }
 
 pub(crate) enum NewError {
@@ -152,10 +153,14 @@ fn new_at(
     name: &str,
     set_default: bool,
     statusline: bool,
+    effort: Option<EffortLevel>,
 ) -> ExitCode {
-    match create(data_dir, config_dir, name, set_default, statusline) {
+    match create(data_dir, config_dir, name, set_default, statusline, effort) {
         Ok(c) => {
             println!("created profile '{name}' at {}", c.profile_dir.display());
+            if let Some(path) = c.effort_config {
+                println!("pinned default effort at {}", path.display());
+            }
             if let Some(path) = c.statusline_settings {
                 println!("enabled statusLine indicator at {}", path.display());
             }
@@ -247,8 +252,14 @@ fn statusline_at(
     }
 }
 
-fn use_profile_at(cwd: &Path, data_dir: &Path, name: &str, workspace: bool) -> ExitCode {
-    match apply(cwd, data_dir, name, workspace) {
+fn use_profile_at(
+    cwd: &Path,
+    data_dir: &Path,
+    name: &str,
+    workspace: bool,
+    effort: Option<EffortLevel>,
+) -> ExitCode {
+    match apply(cwd, data_dir, name, workspace, effort) {
         Ok(a) => {
             println!("set profile '{name}' at {}", a.marker_path.display());
             ExitCode::SUCCESS
@@ -318,11 +329,105 @@ fn list_at(dirs: &Dirs, cwd: Option<&Path>, out: &mut impl Write) -> ExitCode {
     }
 }
 
+fn effort_at(
+    dirs: &Dirs,
+    cwd: Option<&Path>,
+    level: EffortLevel,
+    profile: Option<&str>,
+    local: bool,
+) -> ExitCode {
+    if local {
+        return local_effort_at(dirs, cwd, level);
+    }
+    let name = if let Some(name) = profile {
+        name.to_owned()
+    } else {
+        let Some(cwd) = cwd else {
+            eprintln!("claude-shim: unable to read current directory");
+            return ExitCode::from(2);
+        };
+        let Some(name) = active_profile(cwd, dirs.home, dirs.config_dir) else {
+            eprintln!("claude-shim: no active profile here — pass --profile <name>");
+            return ExitCode::from(2);
+        };
+        name
+    };
+    if !is_valid_profile_name(&name) {
+        eprintln!("claude-shim: invalid profile name '{name}'");
+        return ExitCode::from(2);
+    }
+    let dir = profile_dir(dirs.data_dir, &name);
+    if !dir.is_dir() {
+        eprintln!(
+            "claude-shim: profile '{name}' does not exist at {}",
+            dir.display()
+        );
+        return ExitCode::from(2);
+    }
+    let config_path = dir.join("claude-shim.json");
+    match std::fs::write(&config_path, marker::profile_default_body(level)) {
+        Ok(()) => {
+            println!(
+                "set effort '{}' on profile '{name}' ({})",
+                level.as_token(),
+                config_path.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("claude-shim: I/O error at {}: {e}", config_path.display());
+            ExitCode::from(2)
+        }
+    }
+}
+
+fn local_effort_at(dirs: &Dirs, cwd: Option<&Path>, level: EffortLevel) -> ExitCode {
+    let Some(cwd) = cwd else {
+        eprintln!("claude-shim: unable to read current directory");
+        return ExitCode::from(2);
+    };
+    let hit = match find_project_marker(cwd, Some(dirs.home)) {
+        Some(Ok(hit)) => hit,
+        Some(Err(fault)) => {
+            eprintln!(
+                "claude-shim: marker at {} is unusable ({})",
+                fault.path.display(),
+                fault.reason
+            );
+            return ExitCode::from(2);
+        }
+        None => {
+            eprintln!(
+                "claude-shim: no project or workspace binding here — create one with \
+                 `claude-shim profile use <name> --effort {}`",
+                level.as_token()
+            );
+            return ExitCode::from(2);
+        }
+    };
+    match std::fs::write(&hit.path, project_body(&hit.name, Some(level))) {
+        Ok(()) => {
+            println!(
+                "set effort '{}' on '{}' ({})",
+                level.as_token(),
+                hit.name,
+                hit.path.display()
+            );
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("claude-shim: I/O error at {}: {e}", hit.path.display());
+            ExitCode::from(2)
+        }
+    }
+}
+
 pub(crate) fn apply(
     cwd: &Path,
     data_dir: &Path,
     name: &str,
     workspace: bool,
+    effort: Option<EffortLevel>,
 ) -> Result<Applied, UseError> {
     if !is_valid_profile_name(name) {
         return Err(UseError::InvalidName);
@@ -342,7 +447,8 @@ pub(crate) fn apply(
     if let Some(parent) = marker.parent() {
         std::fs::create_dir_all(parent).map_err(|e| UseError::Io(parent.to_path_buf(), e))?;
     }
-    std::fs::write(&marker, project_body(name)).map_err(|e| UseError::Io(marker.clone(), e))?;
+    std::fs::write(&marker, project_body(name, effort))
+        .map_err(|e| UseError::Io(marker.clone(), e))?;
     Ok(Applied {
         marker_path: marker,
     })
@@ -354,6 +460,7 @@ pub(crate) fn create(
     name: &str,
     set_default: bool,
     statusline: bool,
+    effort: Option<EffortLevel>,
 ) -> Result<Created, NewError> {
     if !is_valid_profile_name(name) {
         return Err(NewError::InvalidName);
@@ -375,6 +482,14 @@ pub(crate) fn create(
     } else {
         None
     };
+    let effort_config = if let Some(level) = effort {
+        let path = dir.join("claude-shim.json");
+        std::fs::write(&path, marker::profile_default_body(level))
+            .map_err(|e| NewError::Io(path.clone(), e))?;
+        Some(path)
+    } else {
+        None
+    };
     let default_marker = if set_default {
         let marker = config_dir.join("claude-shim").join("default-profile");
         if let Some(parent) = marker.parent() {
@@ -390,6 +505,7 @@ pub(crate) fn create(
         profile_dir: dir,
         default_marker,
         statusline_settings,
+        effort_config,
     })
 }
 

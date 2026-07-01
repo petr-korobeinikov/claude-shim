@@ -28,8 +28,9 @@ pub fn run() -> ExitCode {
                     name,
                     default,
                     statusline,
+                    effort,
                 },
-        } => profile::new(&name, default, statusline),
+        } => profile::new(&name, default, statusline, effort),
         Command::Profile {
             action:
                 ProfileAction::Statusline {
@@ -40,8 +41,21 @@ pub fn run() -> ExitCode {
                 },
         } => profile::statusline(profile.as_deref(), preset, command, force),
         Command::Profile {
-            action: ProfileAction::Use { name, workspace },
-        } => profile::use_profile(&name, workspace),
+            action:
+                ProfileAction::Use {
+                    name,
+                    workspace,
+                    effort,
+                },
+        } => profile::use_profile(&name, workspace, effort),
+        Command::Profile {
+            action:
+                ProfileAction::Effort {
+                    level,
+                    profile,
+                    local,
+                },
+        } => profile::effort(level, profile.as_deref(), local),
         Command::Profile {
             action: ProfileAction::List,
         } => profile::list(),

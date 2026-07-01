@@ -9,7 +9,10 @@ use std::process::ExitCode;
 
 use directories::BaseDirs;
 
-use super::{Dirs, StatusLinePreset, current_at, list_at, new_at, statusline_at, use_profile_at};
+use super::{
+    Dirs, EffortLevel, StatusLinePreset, current_at, effort_at, list_at, new_at, statusline_at,
+    use_profile_at,
+};
 
 /// Resolve base directories, printing the standard error on failure.
 /// `None` → the caller should exit 2.
@@ -42,7 +45,12 @@ pub(crate) fn current() -> ExitCode {
     current_at(&dirs(&base), &cwd, &mut io::stdout())
 }
 
-pub(crate) fn new(name: &str, set_default: bool, statusline: bool) -> ExitCode {
+pub(crate) fn new(
+    name: &str,
+    set_default: bool,
+    statusline: bool,
+    effort: Option<EffortLevel>,
+) -> ExitCode {
     let Some(base) = base_dirs() else {
         return ExitCode::from(2);
     };
@@ -52,6 +60,7 @@ pub(crate) fn new(name: &str, set_default: bool, statusline: bool) -> ExitCode {
         name,
         set_default,
         statusline,
+        effort,
     )
 }
 
@@ -75,7 +84,7 @@ pub(crate) fn statusline(
     )
 }
 
-pub(crate) fn use_profile(name: &str, workspace: bool) -> ExitCode {
+pub(crate) fn use_profile(name: &str, workspace: bool, effort: Option<EffortLevel>) -> ExitCode {
     let Ok(cwd) = env::current_dir() else {
         eprintln!("claude-shim: unable to read current directory");
         return ExitCode::from(2);
@@ -83,7 +92,7 @@ pub(crate) fn use_profile(name: &str, workspace: bool) -> ExitCode {
     let Some(base) = base_dirs() else {
         return ExitCode::from(2);
     };
-    use_profile_at(&cwd, base.data_dir(), name, workspace)
+    use_profile_at(&cwd, base.data_dir(), name, workspace, effort)
 }
 
 pub(crate) fn list() -> ExitCode {
@@ -92,4 +101,12 @@ pub(crate) fn list() -> ExitCode {
     };
     let cwd = env::current_dir().ok();
     list_at(&dirs(&base), cwd.as_deref(), &mut io::stdout())
+}
+
+pub(crate) fn effort(level: EffortLevel, profile: Option<&str>, local: bool) -> ExitCode {
+    let Some(base) = base_dirs() else {
+        return ExitCode::from(2);
+    };
+    let cwd = env::current_dir().ok();
+    effort_at(&dirs(&base), cwd.as_deref(), level, profile, local)
 }

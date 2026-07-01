@@ -42,11 +42,13 @@ fn parses_profile_new() {
                     name,
                     default,
                     statusline,
+                    effort,
                 },
         } => {
             assert_eq!(name, "personal");
             assert!(!default);
             assert!(!statusline);
+            assert!(effort.is_none());
         }
         _ => panic!("expected Profile::New"),
     }
@@ -63,6 +65,7 @@ fn parses_profile_new_with_default_flag() {
                     name,
                     default,
                     statusline,
+                    ..
                 },
         } => {
             assert_eq!(name, "personal");
@@ -202,10 +205,16 @@ fn parses_profile_use() {
     let cli = Cli::try_parse_from(["claude-shim", "profile", "use", "work"]).unwrap();
     match cli.command {
         Command::Profile {
-            action: ProfileAction::Use { name, workspace },
+            action:
+                ProfileAction::Use {
+                    name,
+                    workspace,
+                    effort,
+                },
         } => {
             assert_eq!(name, "work");
             assert!(!workspace);
+            assert!(effort.is_none());
         }
         _ => panic!("expected Profile::Use"),
     }
@@ -217,7 +226,9 @@ fn parses_profile_use_with_workspace_flag() {
         Cli::try_parse_from(["claude-shim", "profile", "use", "work", "--workspace"]).unwrap();
     match cli.command {
         Command::Profile {
-            action: ProfileAction::Use { name, workspace },
+            action: ProfileAction::Use {
+                name, workspace, ..
+            },
         } => {
             assert_eq!(name, "work");
             assert!(workspace);
@@ -240,4 +251,117 @@ fn parses_profile_list() {
             action: ProfileAction::List,
         }
     ));
+}
+
+#[test]
+fn parses_profile_new_with_effort() {
+    let cli = Cli::try_parse_from([
+        "claude-shim",
+        "profile",
+        "new",
+        "personal",
+        "--effort",
+        "high",
+    ])
+    .unwrap();
+    match cli.command {
+        Command::Profile {
+            action: ProfileAction::New { effort, .. },
+        } => assert!(matches!(effort, Some(crate::profile::EffortLevel::High))),
+        _ => panic!("expected Profile::New"),
+    }
+}
+
+#[test]
+fn parses_profile_use_with_effort() {
+    let cli =
+        Cli::try_parse_from(["claude-shim", "profile", "use", "work", "--effort", "max"]).unwrap();
+    match cli.command {
+        Command::Profile {
+            action: ProfileAction::Use { effort, .. },
+        } => assert!(matches!(effort, Some(crate::profile::EffortLevel::Max))),
+        _ => panic!("expected Profile::Use"),
+    }
+}
+
+#[test]
+fn parses_profile_effort() {
+    let cli = Cli::try_parse_from(["claude-shim", "profile", "effort", "xhigh"]).unwrap();
+    match cli.command {
+        Command::Profile {
+            action:
+                ProfileAction::Effort {
+                    level,
+                    profile,
+                    local,
+                },
+        } => {
+            assert!(matches!(level, crate::profile::EffortLevel::Xhigh));
+            assert!(profile.is_none());
+            assert!(!local);
+        }
+        _ => panic!("expected Profile::Effort"),
+    }
+}
+
+#[test]
+fn parses_profile_effort_with_profile() {
+    let cli = Cli::try_parse_from([
+        "claude-shim",
+        "profile",
+        "effort",
+        "low",
+        "--profile",
+        "work",
+    ])
+    .unwrap();
+    match cli.command {
+        Command::Profile {
+            action: ProfileAction::Effort { level, profile, .. },
+        } => {
+            assert!(matches!(level, crate::profile::EffortLevel::Low));
+            assert_eq!(profile.as_deref(), Some("work"));
+        }
+        _ => panic!("expected Profile::Effort"),
+    }
+}
+
+#[test]
+fn rejects_profile_effort_without_level() {
+    assert!(Cli::try_parse_from(["claude-shim", "profile", "effort"]).is_err());
+}
+
+#[test]
+fn rejects_profile_effort_invalid_level() {
+    assert!(Cli::try_parse_from(["claude-shim", "profile", "effort", "ultra"]).is_err());
+}
+
+#[test]
+fn parses_profile_effort_local() {
+    let cli = Cli::try_parse_from(["claude-shim", "profile", "effort", "high", "--local"]).unwrap();
+    match cli.command {
+        Command::Profile {
+            action: ProfileAction::Effort { local, profile, .. },
+        } => {
+            assert!(local);
+            assert!(profile.is_none());
+        }
+        _ => panic!("expected Profile::Effort"),
+    }
+}
+
+#[test]
+fn rejects_profile_effort_local_with_profile() {
+    assert!(
+        Cli::try_parse_from([
+            "claude-shim",
+            "profile",
+            "effort",
+            "high",
+            "--local",
+            "--profile",
+            "work",
+        ])
+        .is_err()
+    );
 }

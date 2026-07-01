@@ -196,7 +196,7 @@ fn write_project_marker(cwd: &Path, name: &str) {
     fs::create_dir_all(&claude).unwrap();
     fs::write(
         claude.join("claude-shim.json"),
-        crate::profile::project_body(name),
+        crate::profile::project_body(name, None),
     )
     .unwrap();
 }

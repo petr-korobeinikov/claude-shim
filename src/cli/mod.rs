@@ -35,6 +35,9 @@ pub(crate) enum ProfileAction {
         /// Also write a settings.json with a statusLine showing the active profile
         #[arg(long)]
         statusline: bool,
+        /// Pin this profile's default effort level
+        #[arg(long, value_enum)]
+        effort: Option<crate::profile::EffortLevel>,
     },
     /// Set a profile's statusLine (a preset or a custom command)
     #[command(group(ArgGroup::new("source").required(true).args(["preset", "command"])))]
@@ -56,9 +59,25 @@ pub(crate) enum ProfileAction {
     Use {
         /// Profile name (must already exist)
         name: String,
-        /// Write a workspace-wide marker (.claude-shim-profile) instead of the per-project one
+        /// Write a workspace-wide marker (.claude-shim.json at the dir root) instead of the per-project one
         #[arg(long)]
         workspace: bool,
+        /// Pin an effort level for this binding
+        #[arg(long, value_enum)]
+        effort: Option<crate::profile::EffortLevel>,
+    },
+    /// Set the effort level for a profile default or this directory's binding
+    #[command(group(ArgGroup::new("effort-target").args(["profile", "local"])))]
+    Effort {
+        /// Effort tier to pin
+        #[arg(value_enum)]
+        level: crate::profile::EffortLevel,
+        /// Target a named profile's default instead of the active one
+        #[arg(long)]
+        profile: Option<String>,
+        /// Target this directory's project/workspace binding, not the profile default
+        #[arg(long)]
+        local: bool,
     },
     /// List all profiles, marking default and the one active in the current directory
     List,
