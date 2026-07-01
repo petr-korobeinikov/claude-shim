@@ -1,0 +1,8 @@
+/* Home landing: keep the four feature cards as a 2×2 grid on wide screens,
+   instead of VitePress's default single row of four (its grid-4 switches to
+   25%-width columns at >=960px). */
+@media (min-width: 960px) {
+  .VPFeatures .item.grid-4 {
+    width: calc(100% / 2) !important;
+  }
+}

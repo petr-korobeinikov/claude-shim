@@ -16,6 +16,8 @@ hero:
 features:
   - title: Per-project profiles
     details: Swaps CLAUDE_CONFIG_DIR automatically based on the project directory.
+  - title: Effort level
+    details: Pins an effort level per profile or project — even max, which settings.json drops.
   - title: Prompt indicator
     details: Shows the active profile right in your shell prompt.
   - title: statusLine indicator
