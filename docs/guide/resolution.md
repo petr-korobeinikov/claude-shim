@@ -3,8 +3,8 @@
 Markers are discovered by walking up from `$PWD` through the project tree —
 the nearest match wins.
 On each ancestor directory,
-`.claude/claude-shim-profile` (per-project) is checked first
-and takes priority over `.claude-shim-profile` (workspace-wide) at the same level.
+`.claude/claude-shim.json` (per-project) is checked first
+and takes priority over `.claude-shim.json` (workspace-wide) at the same level.
 The walk stops before `$HOME`,
 so a marker placed directly in `$HOME` is not picked up as a global default.
 

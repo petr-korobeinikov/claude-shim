@@ -27,6 +27,7 @@ export default defineConfig({
           { text: 'statusLine indicator', link: '/guide/statusline' },
           { text: 'Profiles', link: '/guide/profiles' },
           { text: 'Profile resolution', link: '/guide/resolution' },
+          { text: 'Effort level', link: '/guide/effort' },
           { text: 'Migration', link: '/guide/migration' },
         ],
       },

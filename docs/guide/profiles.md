@@ -10,11 +10,11 @@ claude-shim profile new personal --default
 claude-shim profile new work --statusline
 claude-shim profile new client-acme
 
-# Point a single project at a profile (writes .claude/claude-shim-profile):
+# Point a single project at a profile (writes .claude/claude-shim.json):
 cd ~/Workspace/my-project
 claude-shim profile use work
 
-# Or, for a whole workspace of projects (writes .claude-shim-profile in the root):
+# Or, for a whole workspace of projects (writes .claude-shim.json in the root):
 cd ~/Workspace/work
 claude-shim profile use work --workspace
 ```
@@ -32,6 +32,9 @@ not in `~/.claude` (which is overridden). A project's own `.claude/` is unaffect
 
 See [statusLine indicator](/guide/statusline) to show the active profile
 in Claude Code's status bar (enable at creation with `--statusline`).
+
+See [Effort level](/guide/effort) to pin a Claude Code effort level
+per profile or per project.
 
 `claude-shim profile current` in a directory with a valid profile prints the name and exits 0;
 without a profile, it prints nothing and exits 0;

@@ -17,3 +17,13 @@ echo default > "${XDG_CONFIG_HOME:-$HOME/.config}/claude-shim/default-profile"
 ::: info
 A `claude-shim migrate` command will land in a later release.
 :::
+
+## Marker format
+
+Profile markers are JSON —
+`.claude/claude-shim.json` (project) and `.claude-shim.json` (workspace),
+each holding at least a profile `name`.
+Earlier alpha builds wrote plaintext markers;
+those are no longer read,
+so a directory that still has one silently stops resolving to that profile until you recreate it.
+Recreate it with `claude-shim profile use <name>` (add `--workspace` for a workspace marker).
