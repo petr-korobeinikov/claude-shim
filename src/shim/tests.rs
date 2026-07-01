@@ -194,7 +194,11 @@ fn ensure_shim_replaces_stale_target() {
 fn write_project_marker(cwd: &Path, name: &str) {
     let claude = cwd.join(".claude");
     fs::create_dir_all(&claude).unwrap();
-    fs::write(claude.join("claude-shim-profile"), name).unwrap();
+    fs::write(
+        claude.join("claude-shim.json"),
+        crate::profile::project_body(name),
+    )
+    .unwrap();
 }
 
 fn workdir_under(home: &Path) -> std::path::PathBuf {
@@ -224,7 +228,7 @@ fn config_dir_for_exports_existing_profile_dir() {
     write_project_marker(&cwd, "foo");
 
     let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
-    let got = config_dir_for(resolution, &dirs(&data, &config, &home), &cwd);
+    let got = config_dir_for(&resolution, &dirs(&data, &config, &home), &cwd);
     assert!(matches!(got, Ok(Some(d)) if d == dir));
 }
 
@@ -239,7 +243,7 @@ fn config_dir_for_refuses_when_configured_profile_is_missing() {
     write_project_marker(&cwd, "ghost"); // marker resolves, but no profile dir exists
 
     let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
-    match config_dir_for(resolution, &dirs(&data, &config, &home), &cwd) {
+    match config_dir_for(&resolution, &dirs(&data, &config, &home), &cwd) {
         Err(ShimError::ProfileDirMissing { name, expected, .. }) => {
             assert_eq!(name, "ghost");
             assert_eq!(expected, crate::profile::profile_dir(data.path(), "ghost"));
@@ -258,7 +262,7 @@ fn config_dir_for_refuses_when_no_profile_in_scope() {
     let cwd = workdir_under(home.path()); // no marker, no ~/.claude, no default
 
     let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
-    match config_dir_for(resolution, &dirs(&data, &config, &home), &cwd) {
+    match config_dir_for(&resolution, &dirs(&data, &config, &home), &cwd) {
         Err(ShimError::NoProfileInScope {
             default_marker,
             home: got_home,
@@ -289,7 +293,56 @@ fn config_dir_for_allows_legacy_without_override() {
 
     let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
     assert!(matches!(
-        config_dir_for(resolution, &dirs(&data, &config, &home), &cwd),
+        config_dir_for(&resolution, &dirs(&data, &config, &home), &cwd),
         Ok(None)
     ));
+}
+
+#[test]
+fn config_dir_for_refuses_on_malformed_marker() {
+    let (data, home, config) = (
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+        TempDir::new().unwrap(),
+    );
+    let cwd = workdir_under(home.path());
+    let claude = cwd.join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    let marker = claude.join("claude-shim.json");
+    fs::write(&marker, "{ not json").unwrap();
+
+    let resolution = crate::profile::resolve(&cwd, home.path(), config.path());
+    match config_dir_for(&resolution, &dirs(&data, &config, &home), &cwd) {
+        Err(ShimError::MarkerUnusable { path, .. }) => assert_eq!(path, marker),
+        other => panic!("expected MarkerUnusable, got {other:?}"),
+    }
+}
+
+#[test]
+fn shim_error_marker_unusable_renders() {
+    let msg = ShimError::MarkerUnusable {
+        path: PathBuf::from("/proj/.claude/claude-shim.json"),
+        reason: "not a JSON object".to_string(),
+    }
+    .to_string();
+    assert!(msg.contains("unusable"), "got: {msg}");
+    assert!(msg.contains("/proj/.claude/claude-shim.json"), "got: {msg}");
+    assert!(msg.contains("not a JSON object"), "got: {msg}");
+}
+
+// ---- effort_to_inject: a shell CLAUDE_CODE_EFFORT_LEVEL is never clobbered ----
+
+#[test]
+fn effort_to_inject_returns_token_when_shell_unset() {
+    assert_eq!(effort_to_inject(Some(EffortLevel::Max), false), Some("max"));
+}
+
+#[test]
+fn effort_to_inject_never_clobbers_shell_value() {
+    assert_eq!(effort_to_inject(Some(EffortLevel::Max), true), None);
+}
+
+#[test]
+fn effort_to_inject_none_when_no_level_resolved() {
+    assert_eq!(effort_to_inject(None, false), None);
 }

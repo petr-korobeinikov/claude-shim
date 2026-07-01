@@ -15,7 +15,7 @@ use directories::BaseDirs;
 
 use crate::profile;
 
-use super::{ShimError, config_dir_for, ensure_shim_at, find_real_claude};
+use super::{ShimError, config_dir_for, effort_to_inject, ensure_shim_at, find_real_claude};
 
 #[must_use]
 pub fn run() -> ExitCode {
@@ -47,8 +47,18 @@ fn try_run() -> Result<Infallible, ShimError> {
         home: base.home_dir(),
     };
     let resolution = profile::resolve(&cwd, dirs.home, dirs.config_dir);
-    if let Some(dir) = config_dir_for(resolution, &dirs, &cwd)? {
+    if let Some(dir) = config_dir_for(&resolution, &dirs, &cwd)? {
         cmd.env("CLAUDE_CONFIG_DIR", &dir);
+    }
+    if let profile::Resolution::Profile(p) = &resolution {
+        let effort = profile::resolve_effort(dirs.data_dir, p);
+        for (path, warning) in &effort.warnings {
+            eprintln!("claude-shim: {}: {warning}", path.display());
+        }
+        let shell_already_set = env::var_os("CLAUDE_CODE_EFFORT_LEVEL").is_some();
+        if let Some(token) = effort_to_inject(effort.level, shell_already_set) {
+            cmd.env("CLAUDE_CODE_EFFORT_LEVEL", token);
+        }
     }
 
     let err = cmd.exec();

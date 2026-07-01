@@ -35,8 +35,18 @@ fn is_valid_rejects_nul_byte() {
 fn write_project_marker(dir: &Path, name: &str) -> PathBuf {
     let claude = dir.join(".claude");
     fs::create_dir_all(&claude).unwrap();
-    let marker = claude.join("claude-shim-profile");
-    fs::write(&marker, name).unwrap();
+    let marker = claude.join("claude-shim.json");
+    fs::write(&marker, project_body(name)).unwrap();
+    marker
+}
+
+fn write_project_marker_with_effort(dir: &Path, name: &str, effort: &str) -> PathBuf {
+    let claude = dir.join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    let marker = claude.join("claude-shim.json");
+    let body = serde_json::to_string_pretty(&serde_json::json!({ "name": name, "effort": effort }))
+        .unwrap();
+    fs::write(&marker, body).unwrap();
     marker
 }
 
@@ -47,12 +57,12 @@ fn find_project_marker_returns_none_when_absent() {
 }
 
 #[test]
-fn find_project_marker_reads_first_line_and_returns_path() {
+fn find_project_marker_reads_name_and_returns_path() {
     let dir = TempDir::new().unwrap();
-    let marker = write_project_marker(dir.path(), "myprofile\nignored");
-    let got = find_project_marker(dir.path(), None).unwrap();
-    assert_eq!(got.name, "myprofile");
-    assert_eq!(got.path, marker);
+    let marker = write_project_marker(dir.path(), "myprofile");
+    let hit = find_project_marker(dir.path(), None).unwrap().unwrap();
+    assert_eq!(hit.name, "myprofile");
+    assert_eq!(hit.path, marker);
 }
 
 #[test]
@@ -60,16 +70,19 @@ fn find_project_marker_trims_whitespace() {
     let dir = TempDir::new().unwrap();
     write_project_marker(dir.path(), "  trimmed  ");
     assert_eq!(
-        find_project_marker(dir.path(), None).unwrap().name,
+        find_project_marker(dir.path(), None).unwrap().unwrap().name,
         "trimmed"
     );
 }
 
 #[test]
-fn find_project_marker_skips_empty_file() {
+fn find_project_marker_blank_name_is_fault() {
     let dir = TempDir::new().unwrap();
     write_project_marker(dir.path(), "");
-    assert!(find_project_marker(dir.path(), None).is_none());
+    assert!(matches!(
+        find_project_marker(dir.path(), None),
+        Some(Err(_))
+    ));
 }
 
 #[test]
@@ -78,9 +91,9 @@ fn find_project_marker_walks_up_from_nested_dir() {
     let outer_marker = write_project_marker(dir.path(), "outer");
     let nested = dir.path().join("a/b/c");
     fs::create_dir_all(&nested).unwrap();
-    let got = find_project_marker(&nested, None).unwrap();
-    assert_eq!(got.name, "outer");
-    assert_eq!(got.path, outer_marker);
+    let hit = find_project_marker(&nested, None).unwrap().unwrap();
+    assert_eq!(hit.name, "outer");
+    assert_eq!(hit.path, outer_marker);
 }
 
 #[test]
@@ -89,9 +102,9 @@ fn find_project_marker_takes_nearest_match() {
     write_project_marker(dir.path(), "outer");
     let nested = dir.path().join("inner");
     let near_marker = write_project_marker(&nested, "nearest");
-    let got = find_project_marker(&nested, None).unwrap();
-    assert_eq!(got.name, "nearest");
-    assert_eq!(got.path, near_marker);
+    let hit = find_project_marker(&nested, None).unwrap().unwrap();
+    assert_eq!(hit.name, "nearest");
+    assert_eq!(hit.path, near_marker);
 }
 
 #[test]
@@ -106,8 +119,8 @@ fn find_project_marker_bounded_stops_before_bound() {
 }
 
 fn write_workspace_marker(dir: &Path, name: &str) -> PathBuf {
-    let marker = dir.join(".claude-shim-profile");
-    fs::write(&marker, name).unwrap();
+    let marker = dir.join(".claude-shim.json");
+    fs::write(&marker, project_body(name)).unwrap();
     marker
 }
 
@@ -115,9 +128,9 @@ fn write_workspace_marker(dir: &Path, name: &str) -> PathBuf {
 fn find_project_marker_reads_workspace_marker() {
     let dir = TempDir::new().unwrap();
     let marker = write_workspace_marker(dir.path(), "ws");
-    let got = find_project_marker(dir.path(), None).unwrap();
-    assert_eq!(got.name, "ws");
-    assert_eq!(got.path, marker);
+    let hit = find_project_marker(dir.path(), None).unwrap().unwrap();
+    assert_eq!(hit.name, "ws");
+    assert_eq!(hit.path, marker);
 }
 
 #[test]
@@ -126,9 +139,9 @@ fn find_project_marker_workspace_walks_up_from_nested_dir() {
     let outer = write_workspace_marker(dir.path(), "ws");
     let nested = dir.path().join("proj/sub");
     fs::create_dir_all(&nested).unwrap();
-    let got = find_project_marker(&nested, None).unwrap();
-    assert_eq!(got.name, "ws");
-    assert_eq!(got.path, outer);
+    let hit = find_project_marker(&nested, None).unwrap().unwrap();
+    assert_eq!(hit.name, "ws");
+    assert_eq!(hit.path, outer);
 }
 
 #[test]
@@ -136,9 +149,9 @@ fn find_project_marker_project_wins_over_workspace_at_same_dir() {
     let dir = TempDir::new().unwrap();
     let proj = write_project_marker(dir.path(), "proj");
     write_workspace_marker(dir.path(), "ws");
-    let got = find_project_marker(dir.path(), None).unwrap();
-    assert_eq!(got.name, "proj");
-    assert_eq!(got.path, proj);
+    let hit = find_project_marker(dir.path(), None).unwrap().unwrap();
+    assert_eq!(hit.name, "proj");
+    assert_eq!(hit.path, proj);
 }
 
 #[test]
@@ -148,9 +161,9 @@ fn find_project_marker_nearest_workspace_wins_over_higher_project() {
     let nested = dir.path().join("inner");
     fs::create_dir_all(&nested).unwrap();
     let near = write_workspace_marker(&nested, "inner-ws");
-    let got = find_project_marker(&nested, None).unwrap();
-    assert_eq!(got.name, "inner-ws");
-    assert_eq!(got.path, near);
+    let hit = find_project_marker(&nested, None).unwrap().unwrap();
+    assert_eq!(hit.name, "inner-ws");
+    assert_eq!(hit.path, near);
 }
 
 #[test]
@@ -266,6 +279,213 @@ fn active_profile_is_none_without_any_marker() {
     let config = TempDir::new().unwrap();
     let project = TempDir::new().unwrap();
     assert!(active_profile(project.path(), home.path(), config.path()).is_none());
+}
+
+// ---- #19: JSON markers, effort resolution ----
+
+#[test]
+fn find_project_marker_empty_file_is_fault() {
+    let dir = TempDir::new().unwrap();
+    let claude = dir.path().join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    fs::write(claude.join("claude-shim.json"), "").unwrap();
+    assert!(matches!(
+        find_project_marker(dir.path(), None),
+        Some(Err(_))
+    ));
+}
+
+#[test]
+fn find_project_marker_malformed_is_fault() {
+    let dir = TempDir::new().unwrap();
+    let claude = dir.path().join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    let marker = claude.join("claude-shim.json");
+    fs::write(&marker, "{ not json").unwrap();
+    match find_project_marker(dir.path(), None) {
+        Some(Err(fault)) => assert_eq!(fault.path, marker),
+        _ => panic!("expected a fault"),
+    }
+}
+
+#[test]
+fn find_project_marker_captures_effort_override() {
+    let dir = TempDir::new().unwrap();
+    write_project_marker_with_effort(dir.path(), "proj", "max");
+    let hit = find_project_marker(dir.path(), None).unwrap().unwrap();
+    assert_eq!(hit.name, "proj");
+    assert_eq!(hit.effort, Some(EffortLevel::Max));
+}
+
+#[test]
+fn resolve_malformed_project_marker_is_malformed() {
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+    let claude = project.path().join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    fs::write(claude.join("claude-shim.json"), "{ bad").unwrap();
+
+    assert!(matches!(
+        resolve(project.path(), home.path(), config.path()),
+        Resolution::Malformed(_)
+    ));
+}
+
+#[test]
+fn resolve_carries_project_effort_override() {
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+    write_project_marker_with_effort(project.path(), "proj", "high");
+
+    match resolve(project.path(), home.path(), config.path()) {
+        Resolution::Profile(p) => {
+            assert_eq!(p.name, "proj");
+            assert_eq!(p.effort_override, Some(EffortLevel::High));
+        }
+        _ => panic!("expected Project"),
+    }
+}
+
+#[test]
+fn active_profile_is_none_on_malformed_marker() {
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+    let claude = project.path().join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    fs::write(claude.join("claude-shim.json"), "{ bad").unwrap();
+    assert!(active_profile(project.path(), home.path(), config.path()).is_none());
+}
+
+#[test]
+fn find_project_marker_rejects_traversal_name() {
+    let dir = TempDir::new().unwrap();
+    let claude = dir.path().join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    fs::write(
+        claude.join("claude-shim.json"),
+        serde_json::json!({ "name": "../../../etc" }).to_string(),
+    )
+    .unwrap();
+    assert!(matches!(
+        find_project_marker(dir.path(), None),
+        Some(Err(_))
+    ));
+}
+
+#[test]
+fn resolve_rejects_traversal_name_in_project_marker() {
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+    let claude = project.path().join(".claude");
+    fs::create_dir_all(&claude).unwrap();
+    fs::write(
+        claude.join("claude-shim.json"),
+        serde_json::json!({ "name": ".." }).to_string(),
+    )
+    .unwrap();
+    assert!(matches!(
+        resolve(project.path(), home.path(), config.path()),
+        Resolution::Malformed(_)
+    ));
+}
+
+#[test]
+fn resolve_ignores_invalid_default_marker_name() {
+    let home = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+    write_default_marker(config.path(), "../evil");
+    assert!(matches!(
+        resolve(project.path(), home.path(), config.path()),
+        Resolution::None
+    ));
+}
+
+// resolve_effort: project override > profile default > unset
+
+fn project_ref(name: &str, marker: PathBuf, effort_override: Option<EffortLevel>) -> ProfileRef {
+    ProfileRef {
+        name: name.to_owned(),
+        source: ProfileSource::Project,
+        marker,
+        effort_override,
+        warnings: Vec::new(),
+    }
+}
+
+#[test]
+fn resolve_effort_override_wins_without_reading_profile_default() {
+    let data = TempDir::new().unwrap();
+    // No profile-default file exists; the override alone must decide.
+    let pref = project_ref("p", PathBuf::from("/marker"), Some(EffortLevel::High));
+    let got = resolve_effort(data.path(), &pref);
+    assert_eq!(got.level, Some(EffortLevel::High));
+    assert!(got.warnings.is_empty());
+}
+
+#[test]
+fn resolve_effort_reads_profile_default_when_no_override() {
+    let data = TempDir::new().unwrap();
+    let dir = profile_dir(data.path(), "p");
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("claude-shim.json"), r#"{"effort":"max"}"#).unwrap();
+
+    let pref = project_ref("p", PathBuf::from("/marker"), None);
+    assert_eq!(
+        resolve_effort(data.path(), &pref).level,
+        Some(EffortLevel::Max)
+    );
+}
+
+#[test]
+fn resolve_effort_unset_when_no_override_and_no_default() {
+    let data = TempDir::new().unwrap();
+    let pref = project_ref("p", PathBuf::from("/marker"), None);
+    let got = resolve_effort(data.path(), &pref);
+    assert_eq!(got.level, None);
+    assert!(got.warnings.is_empty());
+}
+
+#[test]
+fn resolve_effort_surfaces_profile_default_warning_with_its_path() {
+    let data = TempDir::new().unwrap();
+    let dir = profile_dir(data.path(), "p");
+    fs::create_dir_all(&dir).unwrap();
+    let config = dir.join("claude-shim.json");
+    fs::write(&config, r#"{"effort":"ultra"}"#).unwrap();
+
+    let pref = project_ref("p", PathBuf::from("/marker"), None);
+    let got = resolve_effort(data.path(), &pref);
+    assert_eq!(got.level, None);
+    assert_eq!(got.warnings.len(), 1);
+    assert_eq!(got.warnings[0].0, config);
+}
+
+#[test]
+fn resolve_effort_carries_project_marker_warning_paired_with_marker() {
+    let data = TempDir::new().unwrap();
+    // A bad project-marker effort leaves no override, so we also consult the
+    // (absent) profile default — but the marker's own warning must survive,
+    // paired with the marker path, not the profile-default path.
+    let marker = PathBuf::from("/some/.claude/claude-shim.json");
+    let pref = ProfileRef {
+        name: "p".to_owned(),
+        source: ProfileSource::Project,
+        marker: marker.clone(),
+        effort_override: None,
+        warnings: vec![MarkerWarning::InvalidEffort("ultra".into())],
+    };
+    let got = resolve_effort(data.path(), &pref);
+    assert_eq!(got.level, None);
+    assert_eq!(got.warnings[0].0, marker);
+    assert_eq!(
+        got.warnings[0].1,
+        MarkerWarning::InvalidEffort("ultra".into())
+    );
 }
 
 #[test]
@@ -522,9 +742,13 @@ fn apply_writes_project_marker_by_default() {
     });
     assert_eq!(
         a.marker_path,
-        cwd.path().join(".claude").join("claude-shim-profile")
+        cwd.path().join(".claude").join("claude-shim.json")
     );
-    assert_eq!(fs::read_to_string(&a.marker_path).unwrap(), "work\n");
+    // What `apply` writes must be what the resolver reads back.
+    assert_eq!(
+        find_project_marker(cwd.path(), None).unwrap().unwrap().name,
+        "work"
+    );
 }
 
 #[test]
@@ -549,8 +773,11 @@ fn apply_writes_workspace_marker_with_flag() {
     let a = apply(cwd.path(), data.path(), "work", true).unwrap_or_else(|_| {
         panic!("expected Ok");
     });
-    assert_eq!(a.marker_path, cwd.path().join(".claude-shim-profile"));
-    assert_eq!(fs::read_to_string(&a.marker_path).unwrap(), "work\n");
+    assert_eq!(a.marker_path, cwd.path().join(".claude-shim.json"));
+    assert_eq!(
+        find_project_marker(cwd.path(), None).unwrap().unwrap().name,
+        "work"
+    );
     assert!(!cwd.path().join(".claude").exists());
 }
 
@@ -984,7 +1211,7 @@ fn use_profile_at_writes_project_marker() {
     assert!(
         cwd.path()
             .join(".claude")
-            .join("claude-shim-profile")
+            .join("claude-shim.json")
             .is_file()
     );
 }
@@ -1014,13 +1241,16 @@ fn use_profile_at_fails_when_marker_exists() {
     let data = TempDir::new().unwrap();
     let cwd = TempDir::new().unwrap();
     make_profile(data.path(), "foo");
-    let marker = write_project_marker(cwd.path(), "old");
+    write_project_marker(cwd.path(), "old");
     assert_eq!(
         use_profile_at(cwd.path(), data.path(), "foo", false),
         ExitCode::from(2)
     );
     // The guard must not clobber the existing selection from "old" to "foo".
-    assert_eq!(fs::read_to_string(&marker).unwrap().trim(), "old");
+    assert_eq!(
+        find_project_marker(cwd.path(), None).unwrap().unwrap().name,
+        "old"
+    );
 }
 
 #[test]

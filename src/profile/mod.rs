@@ -6,18 +6,23 @@ use std::process::ExitCode;
 use serde_json::{Map, Value, json};
 
 mod dispatch;
+mod marker;
 pub(crate) use dispatch::{current, list, new, statusline, use_profile};
+pub(crate) use marker::{EffortLevel, MarkerWarning, project_body};
 
 pub(crate) enum Resolution {
     Profile(ProfileRef),
     Legacy,
     None,
+    Malformed(MarkerFault),
 }
 
 pub(crate) struct ProfileRef {
     pub name: String,
     source: ProfileSource,
     pub marker: PathBuf,
+    effort_override: Option<EffortLevel>,
+    warnings: Vec<MarkerWarning>,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -26,9 +31,22 @@ enum ProfileSource {
     Default,
 }
 
-struct ProjectMarker {
+struct MarkerHit {
     name: String,
+    effort: Option<EffortLevel>,
     path: PathBuf,
+    warnings: Vec<MarkerWarning>,
+}
+
+#[derive(Debug)]
+pub(crate) struct MarkerFault {
+    pub path: PathBuf,
+    pub reason: String,
+}
+
+pub(crate) struct EffortResolution {
+    pub level: Option<EffortLevel>,
+    pub warnings: Vec<(PathBuf, MarkerWarning)>,
 }
 
 pub(crate) struct Created {
@@ -124,7 +142,7 @@ pub(crate) struct Dirs<'a> {
 fn current_at(dirs: &Dirs, cwd: &Path, out: &mut impl Write) -> ExitCode {
     match resolve(cwd, dirs.home, dirs.config_dir) {
         Resolution::Profile(p) => emit(&p.name, dirs.data_dir, p.source, out),
-        Resolution::Legacy | Resolution::None => ExitCode::SUCCESS,
+        Resolution::Legacy | Resolution::None | Resolution::Malformed(_) => ExitCode::SUCCESS,
     }
 }
 
@@ -314,9 +332,9 @@ pub(crate) fn apply(
         return Err(UseError::ProfileNotFound(profile));
     }
     let marker = if workspace {
-        cwd.join(".claude-shim-profile")
+        cwd.join(".claude-shim.json")
     } else {
-        cwd.join(".claude").join("claude-shim-profile")
+        cwd.join(".claude").join("claude-shim.json")
     };
     if marker.exists() {
         return Err(UseError::MarkerAlreadyExists(marker));
@@ -324,7 +342,7 @@ pub(crate) fn apply(
     if let Some(parent) = marker.parent() {
         std::fs::create_dir_all(parent).map_err(|e| UseError::Io(parent.to_path_buf(), e))?;
     }
-    std::fs::write(&marker, format!("{name}\n")).map_err(|e| UseError::Io(marker.clone(), e))?;
+    std::fs::write(&marker, project_body(name)).map_err(|e| UseError::Io(marker.clone(), e))?;
     Ok(Applied {
         marker_path: marker,
     })
@@ -513,19 +531,28 @@ pub(crate) fn collect(
 }
 
 pub(crate) fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolution {
-    if let Some(m) = find_project_marker(cwd, Some(home)) {
-        return Resolution::Profile(ProfileRef {
-            name: m.name,
-            source: ProfileSource::Project,
-            marker: m.path,
-        });
+    match find_project_marker(cwd, Some(home)) {
+        Some(Ok(hit)) => {
+            return Resolution::Profile(ProfileRef {
+                name: hit.name,
+                source: ProfileSource::Project,
+                marker: hit.path,
+                effort_override: hit.effort,
+                warnings: hit.warnings,
+            });
+        }
+        Some(Err(fault)) => return Resolution::Malformed(fault),
+        None => {}
     }
     let default_marker = config_dir.join("claude-shim").join("default-profile");
-    if let Some(name) = read_marker_file(&default_marker) {
+    if let Some(name) = read_marker_file(&default_marker).filter(|name| is_valid_profile_name(name))
+    {
         return Resolution::Profile(ProfileRef {
             name,
             source: ProfileSource::Default,
             marker: default_marker,
+            effort_override: None,
+            warnings: Vec::new(),
         });
     }
     if home.join(".claude").is_dir() {
@@ -534,41 +561,100 @@ pub(crate) fn resolve(cwd: &Path, home: &Path, config_dir: &Path) -> Resolution 
     Resolution::None
 }
 
+pub(crate) fn resolve_effort(data_dir: &Path, profile: &ProfileRef) -> EffortResolution {
+    let mut warnings: Vec<(PathBuf, MarkerWarning)> = profile
+        .warnings
+        .iter()
+        .cloned()
+        .map(|w| (profile.marker.clone(), w))
+        .collect();
+    if let Some(level) = profile.effort_override {
+        return EffortResolution {
+            level: Some(level),
+            warnings,
+        };
+    }
+    let config_path = profile_dir(data_dir, &profile.name).join("claude-shim.json");
+    let Ok(text) = std::fs::read_to_string(&config_path) else {
+        return EffortResolution {
+            level: None,
+            warnings,
+        };
+    };
+    let config = marker::parse_profile_config(&text);
+    warnings.extend(
+        config
+            .warnings
+            .into_iter()
+            .map(|w| (config_path.clone(), w)),
+    );
+    EffortResolution {
+        level: config.effort,
+        warnings,
+    }
+}
+
 /// The profile active in `cwd` — the one `profile statusline` targets without
 /// `--profile`. Same resolution as the shim, mapped to its name; `None` when no
 /// profile is in scope.
 fn active_profile(cwd: &Path, home: &Path, config_dir: &Path) -> Option<String> {
     match resolve(cwd, home, config_dir) {
         Resolution::Profile(p) => Some(p.name),
-        Resolution::Legacy | Resolution::None => None,
+        Resolution::Legacy | Resolution::None | Resolution::Malformed(_) => None,
     }
 }
 
-fn find_project_marker(start: &Path, stop_at: Option<&Path>) -> Option<ProjectMarker> {
+fn find_project_marker(
+    start: &Path,
+    stop_at: Option<&Path>,
+) -> Option<Result<MarkerHit, MarkerFault>> {
     for dir in start.ancestors() {
         if matches!(stop_at, Some(s) if dir == s) {
             break;
         }
-        let project = dir.join(".claude").join("claude-shim-profile");
-        if project.is_file()
-            && let Some(name) = read_marker_file(&project)
-        {
-            return Some(ProjectMarker {
-                name,
-                path: project,
-            });
-        }
-        let workspace = dir.join(".claude-shim-profile");
-        if workspace.is_file()
-            && let Some(name) = read_marker_file(&workspace)
-        {
-            return Some(ProjectMarker {
-                name,
-                path: workspace,
-            });
+        for path in [
+            dir.join(".claude").join("claude-shim.json"),
+            dir.join(".claude-shim.json"),
+        ] {
+            if path.is_file() {
+                return Some(load_project_marker(path));
+            }
         }
     }
     None
+}
+
+fn load_project_marker(path: PathBuf) -> Result<MarkerHit, MarkerFault> {
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) => {
+            return Err(MarkerFault {
+                reason: format!("cannot read: {e}"),
+                path,
+            });
+        }
+    };
+    let parsed = match marker::parse_project_marker(&text) {
+        Ok(parsed) => parsed,
+        Err(e) => {
+            return Err(MarkerFault {
+                reason: e.to_string(),
+                path,
+            });
+        }
+    };
+    if !is_valid_profile_name(&parsed.name) {
+        return Err(MarkerFault {
+            reason: format!("invalid profile name {:?}", parsed.name),
+            path,
+        });
+    }
+    Ok(MarkerHit {
+        name: parsed.name,
+        effort: parsed.effort,
+        path,
+        warnings: parsed.warnings,
+    })
 }
 
 pub(crate) fn profile_dir(data_dir: &Path, name: &str) -> PathBuf {

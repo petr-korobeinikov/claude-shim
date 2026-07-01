@@ -5,7 +5,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::profile::{self, Dirs, Resolution};
+use crate::profile::{self, Dirs, EffortLevel, Resolution};
 
 mod exec;
 pub(crate) use exec::ensure_shim;
@@ -28,6 +28,10 @@ enum ShimError {
         name: String,
         marker: PathBuf,
         expected: PathBuf,
+    },
+    MarkerUnusable {
+        path: PathBuf,
+        reason: String,
     },
     ExecFailed {
         path: PathBuf,
@@ -60,10 +64,10 @@ impl fmt::Display for ShimError {
             } => write!(
                 f,
                 "claude-shim: refusing to run `claude` — no profile in scope.\n  \
-                 searched .claude/claude-shim-profile from {} up to {}\n  \
+                 searched .claude/claude-shim.json from {} up to {}\n  \
                  and {}\n\n\
                  Pick a profile explicitly to avoid leaking credentials across contexts:\n  \
-                 echo <name> > .claude/claude-shim-profile      # for this project\n  \
+                 claude-shim profile use <name>     # for this project\n  \
                  echo <name> > {}    # as your default",
                 cwd.display(),
                 home.display(),
@@ -84,6 +88,13 @@ impl fmt::Display for ShimError {
                 marker.display(),
                 expected.display(),
                 expected.display(),
+            ),
+            Self::MarkerUnusable { path, reason } => write!(
+                f,
+                "claude-shim: refusing to run `claude` — the profile marker at {} is unusable ({reason}).\n\n\
+                 Fix or recreate it:\n  \
+                 claude-shim profile use <name>",
+                path.display(),
             ),
             Self::ExecFailed { path, error } => {
                 write!(f, "claude-shim: failed to exec {}: {error}", path.display())
@@ -119,7 +130,7 @@ fn is_executable(p: &Path) -> bool {
 /// This is the shim's credential-isolation decision — kept here and unit-tested,
 /// not inline in the env/exec glue of `exec.rs`.
 fn config_dir_for(
-    resolution: Resolution,
+    resolution: &Resolution,
     dirs: &Dirs,
     cwd: &Path,
 ) -> Result<Option<PathBuf>, ShimError> {
@@ -128,8 +139,8 @@ fn config_dir_for(
             let dir = profile::profile_dir(dirs.data_dir, &p.name);
             if !dir.is_dir() {
                 return Err(ShimError::ProfileDirMissing {
-                    name: p.name,
-                    marker: p.marker,
+                    name: p.name.clone(),
+                    marker: p.marker.clone(),
                     expected: dir,
                 });
             }
@@ -141,7 +152,18 @@ fn config_dir_for(
             home: dirs.home.to_path_buf(),
             default_marker: dirs.config_dir.join("claude-shim").join("default-profile"),
         }),
+        Resolution::Malformed(fault) => Err(ShimError::MarkerUnusable {
+            path: fault.path.clone(),
+            reason: fault.reason.clone(),
+        }),
     }
+}
+
+fn effort_to_inject(level: Option<EffortLevel>, shell_already_set: bool) -> Option<&'static str> {
+    if shell_already_set {
+        return None;
+    }
+    level.map(EffortLevel::as_token)
 }
 
 fn ensure_shim_at(exe: &Path, shims_dir: &Path) -> io::Result<()> {
