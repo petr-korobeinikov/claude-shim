@@ -14,6 +14,15 @@ mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/claude-shim"
 echo default > "${XDG_CONFIG_HOME:-$HOME/.config}/claude-shim/default-profile"
 ```
 
+::: warning macOS: re-login after migrating
+On macOS your login lives in the Keychain,
+keyed by a hash of the `CLAUDE_CONFIG_DIR` path.
+Moving the directory changes that path,
+so Claude Code derives a new hash, finds no entry, and drops into first-time setup.
+Re-run `/login` once to sign back in —
+nothing was deleted, the old entry just isn't found under the new path's hash.
+:::
+
 ::: info
 A `claude-shim migrate` command will land in a later release.
 :::
