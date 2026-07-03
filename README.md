@@ -1,22 +1,54 @@
-# claude-shim
+<div align="center">
+
+<h1 align="center"><img src="docs/public/banner.svg" alt="claude-shim" width="640"></h1>
 
 [![CI](https://github.com/petr-korobeinikov/claude-shim/actions/workflows/ci.yml/badge.svg)](https://github.com/petr-korobeinikov/claude-shim/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/petr-korobeinikov/claude-shim/graph/badge.svg)](https://codecov.io/gh/petr-korobeinikov/claude-shim)
 [![Latest release](https://img.shields.io/github/v/release/petr-korobeinikov/claude-shim?include_prereleases)](https://github.com/petr-korobeinikov/claude-shim/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/petr-korobeinikov/claude-shim)](LICENSE)
-[![Docs](https://img.shields.io/badge/docs-online-blue)](https://petr-korobeinikov.github.io/claude-shim/)
 
-Claude Code profile manager:
-swaps `CLAUDE_CONFIG_DIR` per project
-and shows the active profile in the shell prompt.
+**claude-shim** is a per-project profile manager for Claude Code.
+It swaps `CLAUDE_CONFIG_DIR` based on the directory you're in,
+and shows the active profile right in your shell prompt.
 
-> Alpha.
+[Installation](#installation) ·
+[Usage](#usage) ·
+[Documentation](https://petr-korobeinikov.github.io/claude-shim/)
+
+</div>
+
+<!-- Demo: terminal screencast (profile switch + prompt indicator) pending. -->
+
+> **Beta.**
 > Prebuilt binaries ship per tag;
-> layout and flags may still change.
+> the CLI is stabilizing,
+> though flags may still shift before the first stable release.
 
-**Full documentation:** <https://petr-korobeinikov.github.io/claude-shim/>
+## Why
 
-## Install & setup
+Claude Code keeps auth, history, and settings
+under a single `~/.claude` directory.
+Running more than one — personal vs work, or separate accounts —
+means exporting `CLAUDE_CONFIG_DIR` by hand
+and keeping track of which one is live.
+claude-shim picks the profile from the project directory
+and surfaces it in your prompt,
+so the right config is always active and always visible.
+
+## Features
+
+- **Per-project profiles** —
+  swaps `CLAUDE_CONFIG_DIR` automatically from the project directory,
+  no manual exports.
+- **Effort level** —
+  pins an effort level per profile or project,
+  even `max`, which `settings.json` silently drops.
+- **Prompt indicator** —
+  shows the active profile right in your shell prompt.
+- **statusLine indicator** —
+  shows the active profile in Claude Code's in-session status bar.
+
+## Installation
 
 Build the binary —
 prebuilt release archives and a `mise` install are in the
@@ -46,19 +78,24 @@ Show the active profile in the prompt
 PS1='%n@%m %~ ${CLAUDE_SHIM_ACTIVE_PROFILE:+[$CLAUDE_SHIM_ACTIVE_PROFILE] }%# '
 ```
 
-Create a profile and point a project at it:
+## Usage
+
+Create profiles and point a project at one:
 
 ```sh
-claude-shim profile new personal --default
-claude-shim profile new work
+claude-shim profile new personal --default  # create a profile, make it the default
+claude-shim profile new work                # create another
 cd ~/Workspace/acme
-claude-shim profile use work
+claude-shim profile use work                # this directory now runs under `work`
+claude-shim current                         # print the active profile
 ```
 
 `claude` launched from that directory now runs under the chosen profile;
 Claude Code initializes its contents on first launch.
-See the [docs](https://petr-korobeinikov.github.io/claude-shim/) for profile
-resolution, the workspace marker, and migrating an existing `~/.claude`.
+See the [docs](https://petr-korobeinikov.github.io/claude-shim/)
+for profile resolution,
+the workspace marker,
+and migrating an existing `~/.claude`.
 
 ## Contributing
 
