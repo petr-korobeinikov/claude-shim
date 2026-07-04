@@ -66,6 +66,14 @@ pub(crate) enum ProfileAction {
         #[arg(long, value_enum)]
         effort: Option<crate::profile::EffortLevel>,
     },
+    /// Delete a profile directory (irreversible; requires --yes)
+    Delete {
+        /// Profile name (must already exist)
+        name: String,
+        /// Confirm deletion; without it, print what would be removed and exit non-zero
+        #[arg(long)]
+        yes: bool,
+    },
     /// Set the effort level for a profile default or this directory's binding
     #[command(group(ArgGroup::new("effort-target").args(["profile", "local"])))]
     Effort {

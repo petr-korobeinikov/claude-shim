@@ -49,6 +49,9 @@ pub fn run() -> ExitCode {
                 },
         } => profile::use_profile(&name, workspace, effort),
         Command::Profile {
+            action: ProfileAction::Delete { name, yes },
+        } => profile::delete(&name, yes),
+        Command::Profile {
             action:
                 ProfileAction::Effort {
                     level,

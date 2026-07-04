@@ -7,7 +7,7 @@ use serde_json::{Map, Value, json};
 
 mod dispatch;
 mod marker;
-pub(crate) use dispatch::{current, effort, list, new, statusline, use_profile};
+pub(crate) use dispatch::{current, delete, effort, list, new, statusline, use_profile};
 pub(crate) use marker::{EffortLevel, MarkerWarning, project_body};
 
 pub(crate) enum Resolution {
@@ -126,6 +126,17 @@ pub(crate) struct ListedProfile {
 }
 
 pub(crate) enum ListError {
+    Io(PathBuf, io::Error),
+}
+
+pub(crate) struct Removed {
+    pub profile_dir: PathBuf,
+    pub cleared_default: Option<PathBuf>,
+}
+
+pub(crate) enum DeleteError {
+    InvalidName,
+    ProfileNotFound(PathBuf),
     Io(PathBuf, io::Error),
 }
 
@@ -422,6 +433,56 @@ fn local_effort_at(dirs: &Dirs, cwd: Option<&Path>, level: EffortLevel) -> ExitC
     }
 }
 
+fn delete_at(data_dir: &Path, config_dir: &Path, name: &str, yes: bool) -> ExitCode {
+    // Without --yes this is a non-destructive preview, so it validates and reads
+    // state here; the --yes path delegates every check to remove().
+    if !yes {
+        if !is_valid_profile_name(name) {
+            eprintln!("claude-shim: invalid profile name '{name}'");
+            return ExitCode::from(2);
+        }
+        let dir = profile_dir(data_dir, name);
+        if !dir.is_dir() {
+            eprintln!(
+                "claude-shim: profile '{name}' does not exist at {}",
+                dir.display()
+            );
+            return ExitCode::from(2);
+        }
+        println!("would remove profile '{name}' at {}", dir.display());
+        let default_marker = config_dir.join("claude-shim").join("default-profile");
+        if read_marker_file(&default_marker).as_deref() == Some(name) {
+            println!("'{name}' is the global default; its default marker would be cleared");
+        }
+        eprintln!("hint: re-run with `claude-shim profile delete {name} --yes`");
+        return ExitCode::from(2);
+    }
+    match remove(data_dir, config_dir, name) {
+        Ok(r) => {
+            println!("deleted profile '{name}' at {}", r.profile_dir.display());
+            if r.cleared_default.is_some() {
+                println!("cleared the global default marker");
+            }
+            ExitCode::SUCCESS
+        }
+        Err(DeleteError::InvalidName) => {
+            eprintln!("claude-shim: invalid profile name '{name}'");
+            ExitCode::from(2)
+        }
+        Err(DeleteError::ProfileNotFound(p)) => {
+            eprintln!(
+                "claude-shim: profile '{name}' does not exist at {}",
+                p.display()
+            );
+            ExitCode::from(2)
+        }
+        Err(DeleteError::Io(path, e)) => {
+            eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            ExitCode::from(2)
+        }
+    }
+}
+
 pub(crate) fn apply(
     cwd: &Path,
     data_dir: &Path,
@@ -506,6 +567,41 @@ pub(crate) fn create(
         default_marker,
         statusline_settings,
         effort_config,
+    })
+}
+
+pub(crate) fn remove(
+    data_dir: &Path,
+    config_dir: &Path,
+    name: &str,
+) -> Result<Removed, DeleteError> {
+    if !is_valid_profile_name(name) {
+        return Err(DeleteError::InvalidName);
+    }
+    let dir = profile_dir(data_dir, name);
+    if !dir.is_dir() {
+        return Err(DeleteError::ProfileNotFound(dir));
+    }
+    // Clear the default marker before removing the directory: if interrupted
+    // between the two, a profile that still exists but is no longer the default
+    // is a safer state than a default marker pointing at an already-deleted
+    // directory. A NotFound on the marker means it raced away (goal reached), so
+    // only a real I/O error is propagated.
+    let default_marker = config_dir.join("claude-shim").join("default-profile");
+    let cleared_default = if read_marker_file(&default_marker).as_deref() == Some(name) {
+        match std::fs::remove_file(&default_marker) {
+            Err(e) if e.kind() != io::ErrorKind::NotFound => {
+                return Err(DeleteError::Io(default_marker, e));
+            }
+            _ => Some(default_marker),
+        }
+    } else {
+        None
+    };
+    std::fs::remove_dir_all(&dir).map_err(|e| DeleteError::Io(dir.clone(), e))?;
+    Ok(Removed {
+        profile_dir: dir,
+        cleared_default,
     })
 }
 

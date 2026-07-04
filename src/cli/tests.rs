@@ -365,3 +365,36 @@ fn rejects_profile_effort_local_with_profile() {
         .is_err()
     );
 }
+
+#[test]
+fn parses_profile_delete() {
+    let cli = Cli::try_parse_from(["claude-shim", "profile", "delete", "work"]).unwrap();
+    match cli.command {
+        Command::Profile {
+            action: ProfileAction::Delete { name, yes },
+        } => {
+            assert_eq!(name, "work");
+            assert!(!yes);
+        }
+        _ => panic!("expected Profile::Delete"),
+    }
+}
+
+#[test]
+fn parses_profile_delete_with_yes() {
+    let cli = Cli::try_parse_from(["claude-shim", "profile", "delete", "work", "--yes"]).unwrap();
+    match cli.command {
+        Command::Profile {
+            action: ProfileAction::Delete { name, yes },
+        } => {
+            assert_eq!(name, "work");
+            assert!(yes);
+        }
+        _ => panic!("expected Profile::Delete"),
+    }
+}
+
+#[test]
+fn rejects_profile_delete_without_name() {
+    assert!(Cli::try_parse_from(["claude-shim", "profile", "delete"]).is_err());
+}

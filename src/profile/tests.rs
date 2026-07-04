@@ -1810,3 +1810,180 @@ fn list_at_reports_write_failure() {
         ExitCode::from(2)
     );
 }
+
+#[test]
+fn remove_deletes_profile_directory() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let dir = make_profile(data.path(), "personal");
+    let r =
+        remove(data.path(), config.path(), "personal").unwrap_or_else(|_| panic!("expected Ok"));
+    assert_eq!(r.profile_dir, dir);
+    assert!(!dir.exists());
+    assert!(r.cleared_default.is_none());
+}
+
+#[test]
+fn remove_clears_default_marker_when_target_is_default() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    make_profile(data.path(), "personal");
+    let marker = write_default_marker(config.path(), "personal");
+    let r =
+        remove(data.path(), config.path(), "personal").unwrap_or_else(|_| panic!("expected Ok"));
+    assert_eq!(r.cleared_default.as_deref(), Some(marker.as_path()));
+    assert!(!marker.exists());
+    assert!(!profile_dir(data.path(), "personal").exists());
+}
+
+#[test]
+fn remove_keeps_default_marker_for_other_profile() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    make_profile(data.path(), "keep");
+    make_profile(data.path(), "drop");
+    let marker = write_default_marker(config.path(), "keep");
+    let r = remove(data.path(), config.path(), "drop").unwrap_or_else(|_| panic!("expected Ok"));
+    assert!(r.cleared_default.is_none());
+    assert!(!profile_dir(data.path(), "drop").exists());
+    assert!(marker.is_file());
+    assert_eq!(read_marker_file(&marker).as_deref(), Some("keep"));
+}
+
+#[test]
+fn remove_missing_profile_errors() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    match remove(data.path(), config.path(), "ghost") {
+        Err(DeleteError::ProfileNotFound(p)) => assert_eq!(p, profile_dir(data.path(), "ghost")),
+        _ => panic!("expected ProfileNotFound"),
+    }
+}
+
+#[test]
+fn remove_rejects_invalid_name() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert!(matches!(
+        remove(data.path(), config.path(), "a/b"),
+        Err(DeleteError::InvalidName)
+    ));
+}
+
+#[test]
+fn remove_leaves_unrelated_project_marker() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let project = TempDir::new().unwrap();
+    make_profile(data.path(), "personal");
+    let marker = write_project_marker(project.path(), "personal");
+    remove(data.path(), config.path(), "personal").unwrap_or_else(|_| panic!("expected Ok"));
+    assert!(marker.is_file());
+}
+
+#[test]
+fn delete_at_without_yes_is_non_destructive() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let dir = make_profile(data.path(), "personal");
+    assert_eq!(
+        delete_at(data.path(), config.path(), "personal", false),
+        ExitCode::from(2)
+    );
+    assert!(dir.is_dir());
+}
+
+#[test]
+fn delete_at_with_yes_removes_profile() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let dir = make_profile(data.path(), "personal");
+    assert_eq!(
+        delete_at(data.path(), config.path(), "personal", true),
+        ExitCode::SUCCESS
+    );
+    assert!(!dir.exists());
+}
+
+#[test]
+fn delete_at_missing_profile_errors() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        delete_at(data.path(), config.path(), "ghost", true),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn remove_clears_default_when_data_and_config_aliased() {
+    // On macOS `directories` resolves data_dir and config_dir to the same path;
+    // the default marker and profiles/ are siblings, so removal must not collide.
+    let root = TempDir::new().unwrap();
+    make_profile(root.path(), "personal");
+    let marker = write_default_marker(root.path(), "personal");
+    let r = remove(root.path(), root.path(), "personal").unwrap_or_else(|_| panic!("expected Ok"));
+    assert_eq!(r.cleared_default.as_deref(), Some(marker.as_path()));
+    assert!(!profile_dir(root.path(), "personal").exists());
+    assert!(!marker.exists());
+}
+
+#[test]
+fn delete_at_with_yes_clears_default_marker() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    create(data.path(), config.path(), "personal", true, false, None)
+        .unwrap_or_else(|_| panic!("expected Ok"));
+    let marker = config.path().join("claude-shim").join("default-profile");
+    assert!(marker.is_file());
+    assert_eq!(
+        delete_at(data.path(), config.path(), "personal", true),
+        ExitCode::SUCCESS
+    );
+    assert!(!profile_dir(data.path(), "personal").exists());
+    assert!(!marker.exists());
+}
+
+#[test]
+fn delete_at_dry_run_preserves_default_marker() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let dir = make_profile(data.path(), "personal");
+    let marker = write_default_marker(config.path(), "personal");
+    assert_eq!(
+        delete_at(data.path(), config.path(), "personal", false),
+        ExitCode::from(2)
+    );
+    assert!(dir.is_dir());
+    assert!(marker.is_file());
+}
+
+#[test]
+fn delete_at_dry_run_missing_profile_errors() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        delete_at(data.path(), config.path(), "ghost", false),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn delete_at_with_yes_rejects_invalid_name() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        delete_at(data.path(), config.path(), "a/b", true),
+        ExitCode::from(2)
+    );
+}
+
+#[test]
+fn delete_at_dry_run_rejects_invalid_name() {
+    let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    assert_eq!(
+        delete_at(data.path(), config.path(), "a/b", false),
+        ExitCode::from(2)
+    );
+}

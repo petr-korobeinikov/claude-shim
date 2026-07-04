@@ -10,8 +10,8 @@ use std::process::ExitCode;
 use directories::BaseDirs;
 
 use super::{
-    Dirs, EffortLevel, StatusLinePreset, current_at, effort_at, list_at, new_at, statusline_at,
-    use_profile_at,
+    Dirs, EffortLevel, StatusLinePreset, current_at, delete_at, effort_at, list_at, new_at,
+    statusline_at, use_profile_at,
 };
 
 /// Resolve base directories, printing the standard error on failure.
@@ -109,4 +109,11 @@ pub(crate) fn effort(level: EffortLevel, profile: Option<&str>, local: bool) -> 
     };
     let cwd = env::current_dir().ok();
     effort_at(&dirs(&base), cwd.as_deref(), level, profile, local)
+}
+
+pub(crate) fn delete(name: &str, yes: bool) -> ExitCode {
+    let Some(base) = base_dirs() else {
+        return ExitCode::from(2);
+    };
+    delete_at(base.data_dir(), base.config_dir(), name, yes)
 }
