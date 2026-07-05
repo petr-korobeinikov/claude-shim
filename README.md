@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1 align="center"><img src="docs/public/banner.svg" alt="claude-shim" width="640"></h1>
+<p align="center"><img src="docs/public/banner.svg" alt="claude-shim" width="640"></p>
 
 [![CI](https://github.com/petr-korobeinikov/claude-shim/actions/workflows/ci.yml/badge.svg)](https://github.com/petr-korobeinikov/claude-shim/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/petr-korobeinikov/claude-shim/graph/badge.svg)](https://codecov.io/gh/petr-korobeinikov/claude-shim)
