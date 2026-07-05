@@ -10,7 +10,7 @@ Each step links to the page with the full details.
 and verifies its GitHub artifact attestations:
 
 ```sh
-mise use -g github:petr-korobeinikov/claude-shim@2026.6.0-alpha.2
+mise use -g github:petr-korobeinikov/claude-shim@latest
 ```
 :::
 

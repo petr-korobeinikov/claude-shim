@@ -16,7 +16,7 @@ attaches prebuilt archives:
   (Apple Silicon + Intel).
 
 ```sh
-ver=2026.6.0-alpha.2
+ver=2026.7.0
 base=https://github.com/petr-korobeinikov/claude-shim/releases/download
 curl -fsSL "$base/v$ver/claude-shim-$ver-x86_64-unknown-linux-musl.tar.gz" | tar xz
 ./claude-shim --version
@@ -34,7 +34,7 @@ mise selects the right asset for your platform
 and verifies its GitHub artifact attestations:
 
 ```sh
-mise use -g github:petr-korobeinikov/claude-shim@2026.6.0-alpha.2
+mise use -g github:petr-korobeinikov/claude-shim@latest
 claude-shim --version
 ```
 
