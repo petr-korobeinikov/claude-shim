@@ -119,6 +119,37 @@ jobs:
             "${flags[@]}" \
             dist/*.tar.gz
 
+  # Publish the crate to crates.io. Runs last: a crates.io version is immutable
+  # and the name can't be freed by a yank, so we only burn it once the binaries
+  # and the GitHub Release for this tag are green. Fires on every v* tag — a
+  # -beta.N version is a valid semver pre-release, uploaded but never served as
+  # the default `cargo install` target.
+  publish-crate:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v4
+        with:
+          install: false
+      - run: mise install rust
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Versions are immutable; skip if already published so a workflow
+          # re-run (e.g. after a later job failed) stays green instead of erroring
+          # on "crate version already exists".
+          if curl -fsS "https://index.crates.io/cl/au/claude-shim" \
+             | jq -e --arg v "$version" 'select(.vers == $v)' >/dev/null; then
+            echo "claude-shim ${version} already on crates.io; skipping"
+            exit 0
+          fi
+          cargo publish --locked
+
   # Deploy the docs site for this release. The Release above is created with the
   # default GITHUB_TOKEN, and token-originated events can't start another
   # workflow run (GitHub's recursion guard) — so `docs.yml`'s `on: release`
