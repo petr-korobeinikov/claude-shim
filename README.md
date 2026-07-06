@@ -19,11 +19,6 @@ and shows the active profile right in your shell prompt.
 
 <!-- Demo: terminal screencast (profile switch + prompt indicator) pending. -->
 
-> **Beta.**
-> Prebuilt binaries ship per tag;
-> the CLI is stabilizing,
-> though flags may still shift before the first stable release.
-
 ## Why
 
 Claude Code keeps auth, history, and settings
