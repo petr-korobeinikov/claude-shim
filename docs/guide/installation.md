@@ -38,6 +38,21 @@ mise use -g github:petr-korobeinikov/claude-shim@latest
 claude-shim --version
 ```
 
+## From crates.io
+
+The crate is published to [crates.io](https://crates.io/crates/claude-shim),
+so any Rust toolchain can fetch and build it:
+
+```sh
+cargo install claude-shim
+claude-shim --version
+```
+
+This compiles from source —
+slower than the prebuilt archives above —
+and lands the binary in `~/.cargo/bin`
+(already on your `PATH` if you use cargo).
+
 ## From source
 
 ```sh
