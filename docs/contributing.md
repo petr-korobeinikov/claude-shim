@@ -39,6 +39,22 @@ prek install
 The hooks in `.pre-commit-config.yaml` mirror `.github/workflows/ci.yml`,
 so a clean local commit means a green CI check.
 
+## End-to-end tests
+
+Unit tests run under `cargo test`.
+End-to-end tests drive the real binary — and the zsh integration —
+with [bats-core](https://bats-core.readthedocs.io/),
+pinned in `mise.toml` and brought in by `mise install`.
+Build first, then run the suite:
+
+```sh
+cargo build
+bats e2e/
+```
+
+Every test runs against a throwaway `HOME`,
+so your real profiles stay untouched.
+
 ## Claude Code skills
 
 `skills-lock.json` pins the Claude Code skill set this repo expects.

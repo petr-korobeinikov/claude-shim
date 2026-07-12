@@ -5,6 +5,7 @@ lockfile = true
 [tools]
 rust = { version = "1.95.0", components = "rustfmt,clippy,llvm-tools-preview" }
 node = "24.16.0"
+"aqua:bats-core/bats-core" = "1.13.0"
 "aqua:gittower/git-flow-next" = "1.1.0"
 "aqua:j178/prek" = "0.4.5"
 "aqua:nektos/act" = "0.2.89"
@@ -19,3 +20,7 @@ run = [
   "cargo llvm-cov --codecov --output-path target/codecov.json --ignore-filename-regex '(^|/)(main|lib|dispatch|exec)\\.rs$'",
   "cargo llvm-cov report --summary-only --ignore-filename-regex '(^|/)(main|lib|dispatch|exec)\\.rs$'",
 ]
+
+[tasks.e2e]
+description = "End-to-end tests: exercise the real binary and the zsh integration with bats"
+run = "bats e2e/"
