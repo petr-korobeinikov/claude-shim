@@ -32,8 +32,12 @@ _common_teardown() {
     [[ -n "${TEST_HOME:-}" ]] && rm -rf "$TEST_HOME"
 }
 
+# Extract the path from a "… at <path>" line, resolving a leading `~` back to an
+# absolute path. The CLI prints home paths in short `~/…` form; callers use the
+# result as a real filesystem path, so expand it here in one place.
 path_after_at() {
-    printf '%s\n' "${1##* at }"
+    local p="${1##* at }"
+    printf '%s\n' "${p/#\~/$HOME}"
 }
 
 make_shim() {

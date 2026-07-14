@@ -11,6 +11,8 @@ teardown() { _common_teardown; }
     run "$CLAUDE_SHIM_BIN" profile use dev
     [ "$status" -eq 0 ]
     [[ "$output" == *"set profile 'dev'"* ]]
+    # The marker sits under cwd, so the path prints relative — no ~, no absolute.
+    [[ "$output" == *"at .claude/claude-shim.json"* ]]
     [ -f .claude/claude-shim.json ]
 
     run "$CLAUDE_SHIM_BIN" profile current

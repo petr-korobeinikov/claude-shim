@@ -1,4 +1,5 @@
 use super::*;
+use crate::render::PathCtx;
 use serde_json::Value;
 use std::fs;
 use tempfile::TempDir;
@@ -1291,8 +1292,16 @@ fn current_at_prints_nothing_when_no_profile_in_scope() {
 fn new_at_creates_profile() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     assert_eq!(
-        new_at(data.path(), config.path(), "foo", false, false, None),
+        new_at(
+            &dirs(&data, &config, &home),
+            None,
+            "foo",
+            false,
+            false,
+            None
+        ),
         ExitCode::SUCCESS
     );
     assert!(profile_dir(data.path(), "foo").is_dir());
@@ -1302,8 +1311,16 @@ fn new_at_creates_profile() {
 fn new_at_rejects_invalid_name() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     assert_eq!(
-        new_at(data.path(), config.path(), "a/b", false, false, None),
+        new_at(
+            &dirs(&data, &config, &home),
+            None,
+            "a/b",
+            false,
+            false,
+            None
+        ),
         ExitCode::from(2)
     );
 }
@@ -1312,9 +1329,17 @@ fn new_at_rejects_invalid_name() {
 fn new_at_fails_when_profile_exists() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     make_profile(data.path(), "foo");
     assert_eq!(
-        new_at(data.path(), config.path(), "foo", false, false, None),
+        new_at(
+            &dirs(&data, &config, &home),
+            None,
+            "foo",
+            false,
+            false,
+            None
+        ),
         ExitCode::from(2)
     );
 }
@@ -1323,8 +1348,9 @@ fn new_at_fails_when_profile_exists() {
 fn new_at_with_default_and_statusline_writes_both() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     assert_eq!(
-        new_at(data.path(), config.path(), "foo", true, true, None),
+        new_at(&dirs(&data, &config, &home), None, "foo", true, true, None),
         ExitCode::SUCCESS
     );
     assert!(
@@ -1512,10 +1538,12 @@ fn statusline_at_already_set_without_force_then_force() {
 #[test]
 fn use_profile_at_writes_project_marker() {
     let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     let cwd = TempDir::new().unwrap();
     make_profile(data.path(), "foo");
     assert_eq!(
-        use_profile_at(cwd.path(), data.path(), "foo", false, None),
+        use_profile_at(cwd.path(), &dirs(&data, &config, &home), "foo", false, None),
         ExitCode::SUCCESS
     );
     assert!(
@@ -1529,9 +1557,11 @@ fn use_profile_at_writes_project_marker() {
 #[test]
 fn use_profile_at_rejects_invalid_name() {
     let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     let cwd = TempDir::new().unwrap();
     assert_eq!(
-        use_profile_at(cwd.path(), data.path(), "a/b", false, None),
+        use_profile_at(cwd.path(), &dirs(&data, &config, &home), "a/b", false, None),
         ExitCode::from(2)
     );
 }
@@ -1539,9 +1569,17 @@ fn use_profile_at_rejects_invalid_name() {
 #[test]
 fn use_profile_at_fails_when_profile_missing() {
     let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     let cwd = TempDir::new().unwrap();
     assert_eq!(
-        use_profile_at(cwd.path(), data.path(), "ghost", false, None),
+        use_profile_at(
+            cwd.path(),
+            &dirs(&data, &config, &home),
+            "ghost",
+            false,
+            None
+        ),
         ExitCode::from(2)
     );
 }
@@ -1549,11 +1587,13 @@ fn use_profile_at_fails_when_profile_missing() {
 #[test]
 fn use_profile_at_fails_when_marker_exists() {
     let data = TempDir::new().unwrap();
+    let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     let cwd = TempDir::new().unwrap();
     make_profile(data.path(), "foo");
     write_project_marker(cwd.path(), "old");
     assert_eq!(
-        use_profile_at(cwd.path(), data.path(), "foo", false, None),
+        use_profile_at(cwd.path(), &dirs(&data, &config, &home), "foo", false, None),
         ExitCode::from(2)
     );
     // The guard must not clobber the existing selection from "old" to "foo".
@@ -1624,7 +1664,13 @@ fn emit_prints_name_for_existing_project_profile() {
     let data = TempDir::new().unwrap();
     make_profile(data.path(), "foo");
     let mut out = Vec::new();
-    let code = emit("foo", data.path(), ProfileSource::Project, &mut out);
+    let code = emit(
+        "foo",
+        data.path(),
+        ProfileSource::Project,
+        PathCtx::EMPTY,
+        &mut out,
+    );
     assert_eq!(code, ExitCode::SUCCESS);
     assert_eq!(String::from_utf8(out).unwrap(), "foo\n");
 }
@@ -1634,7 +1680,13 @@ fn emit_prints_name_for_existing_default_profile() {
     let data = TempDir::new().unwrap();
     make_profile(data.path(), "foo");
     let mut out = Vec::new();
-    let code = emit("foo", data.path(), ProfileSource::Default, &mut out);
+    let code = emit(
+        "foo",
+        data.path(),
+        ProfileSource::Default,
+        PathCtx::EMPTY,
+        &mut out,
+    );
     assert_eq!(code, ExitCode::SUCCESS);
     assert_eq!(String::from_utf8(out).unwrap(), "foo\n");
 }
@@ -1643,7 +1695,13 @@ fn emit_prints_name_for_existing_default_profile() {
 fn emit_is_loud_on_missing_project_profile() {
     let data = TempDir::new().unwrap();
     let mut out = Vec::new();
-    let code = emit("ghost", data.path(), ProfileSource::Project, &mut out);
+    let code = emit(
+        "ghost",
+        data.path(),
+        ProfileSource::Project,
+        PathCtx::EMPTY,
+        &mut out,
+    );
     assert_eq!(code, ExitCode::from(2));
     assert!(out.is_empty());
 }
@@ -1652,7 +1710,13 @@ fn emit_is_loud_on_missing_project_profile() {
 fn emit_is_silent_on_missing_default_profile() {
     let data = TempDir::new().unwrap();
     let mut out = Vec::new();
-    let code = emit("ghost", data.path(), ProfileSource::Default, &mut out);
+    let code = emit(
+        "ghost",
+        data.path(),
+        ProfileSource::Default,
+        PathCtx::EMPTY,
+        &mut out,
+    );
     assert_eq!(code, ExitCode::SUCCESS);
     assert!(out.is_empty());
 }
@@ -1661,7 +1725,13 @@ fn emit_is_silent_on_missing_default_profile() {
 fn emit_is_loud_on_invalid_project_name() {
     let data = TempDir::new().unwrap();
     let mut out = Vec::new();
-    let code = emit("a/b", data.path(), ProfileSource::Project, &mut out);
+    let code = emit(
+        "a/b",
+        data.path(),
+        ProfileSource::Project,
+        PathCtx::EMPTY,
+        &mut out,
+    );
     assert_eq!(code, ExitCode::from(2));
     assert!(out.is_empty());
 }
@@ -1670,7 +1740,13 @@ fn emit_is_loud_on_invalid_project_name() {
 fn emit_is_silent_on_invalid_default_name() {
     let data = TempDir::new().unwrap();
     let mut out = Vec::new();
-    let code = emit("a/b", data.path(), ProfileSource::Default, &mut out);
+    let code = emit(
+        "a/b",
+        data.path(),
+        ProfileSource::Default,
+        PathCtx::EMPTY,
+        &mut out,
+    );
     assert_eq!(code, ExitCode::SUCCESS);
     assert!(out.is_empty());
 }
@@ -1683,7 +1759,9 @@ fn serialize_error() -> serde_json::Error {
 
 #[test]
 fn statusline_error_display_renders_alreadyset() {
-    let s = StatuslineError::AlreadySet(PathBuf::from("/x/settings.json")).to_string();
+    let s = StatuslineError::AlreadySet(PathBuf::from("/x/settings.json"))
+        .show(PathCtx::EMPTY)
+        .to_string();
     assert!(s.contains("statusLine already set"), "{s}");
     assert!(s.contains("/x/settings.json"), "{s}");
     assert!(s.contains("--force"), "{s}");
@@ -1691,7 +1769,9 @@ fn statusline_error_display_renders_alreadyset() {
 
 #[test]
 fn statusline_error_display_renders_not_an_object() {
-    let s = StatuslineError::NotAnObject(PathBuf::from("/x/settings.json")).to_string();
+    let s = StatuslineError::NotAnObject(PathBuf::from("/x/settings.json"))
+        .show(PathCtx::EMPTY)
+        .to_string();
     assert!(s.contains("is not a JSON object"), "{s}");
     assert!(s.contains("/x/settings.json"), "{s}");
 }
@@ -1699,14 +1779,18 @@ fn statusline_error_display_renders_not_an_object() {
 #[test]
 fn statusline_error_display_renders_parse() {
     let err = serde_json::from_str::<Value>("{").unwrap_err();
-    let s = StatuslineError::Parse(PathBuf::from("/x/settings.json"), err).to_string();
+    let s = StatuslineError::Parse(PathBuf::from("/x/settings.json"), err)
+        .show(PathCtx::EMPTY)
+        .to_string();
     assert!(s.contains("failed to parse"), "{s}");
     assert!(s.contains("/x/settings.json"), "{s}");
 }
 
 #[test]
 fn statusline_error_display_renders_serialize() {
-    let s = StatuslineError::Serialize(serialize_error()).to_string();
+    let s = StatuslineError::Serialize(serialize_error())
+        .show(PathCtx::EMPTY)
+        .to_string();
     assert!(s.contains("failed to serialize settings"), "{s}");
 }
 
@@ -1716,10 +1800,22 @@ fn statusline_error_display_renders_io() {
         PathBuf::from("/x/settings.json"),
         std::io::Error::other("boom"),
     )
+    .show(PathCtx::EMPTY)
     .to_string();
     assert!(s.contains("I/O error"), "{s}");
     assert!(s.contains("/x/settings.json"), "{s}");
     assert!(s.contains("boom"), "{s}");
+}
+
+#[test]
+fn statusline_error_shortens_path_under_home() {
+    let home = Path::new("/home/u");
+    let settings = PathBuf::from("/home/u/.config/claude-shim/settings.json");
+    let s = StatuslineError::AlreadySet(settings)
+        .show(PathCtx::new(None, Some(home)))
+        .to_string();
+    assert!(s.contains("~/.config/claude-shim/settings.json"), "{s}");
+    assert!(!s.contains("/home/u/.config"), "{s}");
 }
 
 #[test]
@@ -1782,7 +1878,13 @@ fn emit_treats_broken_pipe_as_success() {
     make_profile(data.path(), "foo");
     let mut out = FailingWriter(std::io::ErrorKind::BrokenPipe);
     assert_eq!(
-        emit("foo", data.path(), ProfileSource::Project, &mut out),
+        emit(
+            "foo",
+            data.path(),
+            ProfileSource::Project,
+            PathCtx::EMPTY,
+            &mut out
+        ),
         ExitCode::SUCCESS
     );
 }
@@ -1793,7 +1895,13 @@ fn emit_reports_other_write_errors_as_failure() {
     make_profile(data.path(), "foo");
     let mut out = FailingWriter(std::io::ErrorKind::PermissionDenied);
     assert_eq!(
-        emit("foo", data.path(), ProfileSource::Project, &mut out),
+        emit(
+            "foo",
+            data.path(),
+            ProfileSource::Project,
+            PathCtx::EMPTY,
+            &mut out
+        ),
         ExitCode::from(2)
     );
 }
@@ -1885,9 +1993,10 @@ fn remove_leaves_unrelated_project_marker() {
 fn delete_at_without_yes_is_non_destructive() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     let dir = make_profile(data.path(), "personal");
     assert_eq!(
-        delete_at(data.path(), config.path(), "personal", false),
+        delete_at(&dirs(&data, &config, &home), None, "personal", false),
         ExitCode::from(2)
     );
     assert!(dir.is_dir());
@@ -1897,9 +2006,10 @@ fn delete_at_without_yes_is_non_destructive() {
 fn delete_at_with_yes_removes_profile() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     let dir = make_profile(data.path(), "personal");
     assert_eq!(
-        delete_at(data.path(), config.path(), "personal", true),
+        delete_at(&dirs(&data, &config, &home), None, "personal", true),
         ExitCode::SUCCESS
     );
     assert!(!dir.exists());
@@ -1909,8 +2019,9 @@ fn delete_at_with_yes_removes_profile() {
 fn delete_at_missing_profile_errors() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     assert_eq!(
-        delete_at(data.path(), config.path(), "ghost", true),
+        delete_at(&dirs(&data, &config, &home), None, "ghost", true),
         ExitCode::from(2)
     );
 }
@@ -1932,12 +2043,13 @@ fn remove_clears_default_when_data_and_config_aliased() {
 fn delete_at_with_yes_clears_default_marker() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     create(data.path(), config.path(), "personal", true, false, None)
         .unwrap_or_else(|_| panic!("expected Ok"));
     let marker = config.path().join("claude-shim").join("default-profile");
     assert!(marker.is_file());
     assert_eq!(
-        delete_at(data.path(), config.path(), "personal", true),
+        delete_at(&dirs(&data, &config, &home), None, "personal", true),
         ExitCode::SUCCESS
     );
     assert!(!profile_dir(data.path(), "personal").exists());
@@ -1948,10 +2060,11 @@ fn delete_at_with_yes_clears_default_marker() {
 fn delete_at_dry_run_preserves_default_marker() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     let dir = make_profile(data.path(), "personal");
     let marker = write_default_marker(config.path(), "personal");
     assert_eq!(
-        delete_at(data.path(), config.path(), "personal", false),
+        delete_at(&dirs(&data, &config, &home), None, "personal", false),
         ExitCode::from(2)
     );
     assert!(dir.is_dir());
@@ -1962,8 +2075,9 @@ fn delete_at_dry_run_preserves_default_marker() {
 fn delete_at_dry_run_missing_profile_errors() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     assert_eq!(
-        delete_at(data.path(), config.path(), "ghost", false),
+        delete_at(&dirs(&data, &config, &home), None, "ghost", false),
         ExitCode::from(2)
     );
 }
@@ -1972,8 +2086,9 @@ fn delete_at_dry_run_missing_profile_errors() {
 fn delete_at_with_yes_rejects_invalid_name() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     assert_eq!(
-        delete_at(data.path(), config.path(), "a/b", true),
+        delete_at(&dirs(&data, &config, &home), None, "a/b", true),
         ExitCode::from(2)
     );
 }
@@ -1982,8 +2097,9 @@ fn delete_at_with_yes_rejects_invalid_name() {
 fn delete_at_dry_run_rejects_invalid_name() {
     let data = TempDir::new().unwrap();
     let config = TempDir::new().unwrap();
+    let home = TempDir::new().unwrap();
     assert_eq!(
-        delete_at(data.path(), config.path(), "a/b", false),
+        delete_at(&dirs(&data, &config, &home), None, "a/b", false),
         ExitCode::from(2)
     );
 }

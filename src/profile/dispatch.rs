@@ -54,9 +54,10 @@ pub(crate) fn new(
     let Some(base) = base_dirs() else {
         return ExitCode::from(2);
     };
+    let cwd = env::current_dir().ok();
     new_at(
-        base.data_dir(),
-        base.config_dir(),
+        &dirs(&base),
+        cwd.as_deref(),
         name,
         set_default,
         statusline,
@@ -92,7 +93,7 @@ pub(crate) fn use_profile(name: &str, workspace: bool, effort: Option<EffortLeve
     let Some(base) = base_dirs() else {
         return ExitCode::from(2);
     };
-    use_profile_at(&cwd, base.data_dir(), name, workspace, effort)
+    use_profile_at(&cwd, &dirs(&base), name, workspace, effort)
 }
 
 pub(crate) fn list() -> ExitCode {
@@ -115,5 +116,6 @@ pub(crate) fn delete(name: &str, yes: bool) -> ExitCode {
     let Some(base) = base_dirs() else {
         return ExitCode::from(2);
     };
-    delete_at(base.data_dir(), base.config_dir(), name, yes)
+    let cwd = env::current_dir().ok();
+    delete_at(&dirs(&base), cwd.as_deref(), name, yes)
 }

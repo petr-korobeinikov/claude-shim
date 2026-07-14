@@ -14,6 +14,7 @@ use std::process::{Command, ExitCode};
 use directories::BaseDirs;
 
 use crate::profile;
+use crate::render::PathCtx;
 
 use super::{ShimError, config_dir_for, effort_to_inject, ensure_shim_at, find_real_claude};
 
@@ -22,7 +23,12 @@ pub fn run() -> ExitCode {
     match try_run() {
         Ok(never) => match never {},
         Err(e) => {
-            eprintln!("{e}");
+            // Re-resolved only to shorten the message; this CLI never chdirs, so
+            // it matches what try_run saw. An absent anchor leaves paths absolute.
+            let cwd = env::current_dir().ok();
+            let home = BaseDirs::new().map(|b| b.home_dir().to_path_buf());
+            let ctx = PathCtx::new(cwd.as_deref(), home.as_deref());
+            eprintln!("{}", e.show(ctx));
             ExitCode::from(2)
         }
     }
@@ -52,8 +58,9 @@ fn try_run() -> Result<Infallible, ShimError> {
     }
     if let profile::Resolution::Profile(p) = &resolution {
         let effort = profile::resolve_effort(dirs.data_dir, p);
+        let ctx = PathCtx::new(Some(cwd.as_path()), Some(dirs.home));
         for (path, warning) in &effort.warnings {
-            eprintln!("claude-shim: {}: {warning}", path.display());
+            eprintln!("claude-shim: {}: {warning}", ctx.show(path));
         }
         let shell_already_set = env::var_os("CLAUDE_CODE_EFFORT_LEVEL").is_some();
         if let Some(token) = effort_to_inject(effort.level, shell_already_set) {
@@ -82,9 +89,11 @@ pub(crate) fn ensure_shim() {
     };
     let shims = base.data_dir().join("claude-shim").join("shims");
     if let Err(e) = ensure_shim_at(&exe, &shims) {
+        let cwd = env::current_dir().ok();
+        let ctx = PathCtx::new(cwd.as_deref(), Some(base.home_dir()));
         eprintln!(
             "claude-shim: failed to ensure shim symlink at {}: {e}",
-            shims.display()
+            ctx.show(&shims)
         );
     }
 }

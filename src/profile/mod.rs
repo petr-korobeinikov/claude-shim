@@ -5,6 +5,8 @@ use std::process::ExitCode;
 
 use serde_json::{Map, Value, json};
 
+use crate::render::PathCtx;
+
 mod dispatch;
 mod marker;
 pub(crate) use dispatch::{current, delete, effort, list, new, statusline, use_profile};
@@ -153,30 +155,41 @@ pub(crate) struct Dirs<'a> {
 
 fn current_at(dirs: &Dirs, cwd: &Path, out: &mut impl Write) -> ExitCode {
     match resolve(cwd, dirs.home, dirs.config_dir) {
-        Resolution::Profile(p) => emit(&p.name, dirs.data_dir, p.source, out),
+        Resolution::Profile(p) => {
+            let ctx = PathCtx::new(Some(cwd), Some(dirs.home));
+            emit(&p.name, dirs.data_dir, p.source, ctx, out)
+        }
         Resolution::Legacy | Resolution::None | Resolution::Malformed(_) => ExitCode::SUCCESS,
     }
 }
 
 fn new_at(
-    data_dir: &Path,
-    config_dir: &Path,
+    dirs: &Dirs,
+    cwd: Option<&Path>,
     name: &str,
     set_default: bool,
     statusline: bool,
     effort: Option<EffortLevel>,
 ) -> ExitCode {
-    match create(data_dir, config_dir, name, set_default, statusline, effort) {
+    let ctx = PathCtx::new(cwd, Some(dirs.home));
+    match create(
+        dirs.data_dir,
+        dirs.config_dir,
+        name,
+        set_default,
+        statusline,
+        effort,
+    ) {
         Ok(c) => {
-            println!("created profile '{name}' at {}", c.profile_dir.display());
+            println!("created profile '{name}' at {}", ctx.show(&c.profile_dir));
             if let Some(path) = c.effort_config {
-                println!("pinned default effort at {}", path.display());
+                println!("pinned default effort at {}", ctx.show(&path));
             }
             if let Some(path) = c.statusline_settings {
-                println!("enabled statusLine indicator at {}", path.display());
+                println!("enabled statusLine indicator at {}", ctx.show(&path));
             }
             if let Some(marker) = c.default_marker {
-                println!("set '{name}' as the global default ({})", marker.display());
+                println!("set '{name}' as the global default ({})", ctx.show(&marker));
             }
             ExitCode::SUCCESS
         }
@@ -187,16 +200,16 @@ fn new_at(
         Err(NewError::AlreadyExists(dir)) => {
             eprintln!(
                 "claude-shim: profile '{name}' already exists at {}",
-                dir.display()
+                ctx.show(&dir)
             );
             ExitCode::from(2)
         }
         Err(NewError::Io(path, e)) => {
-            eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            eprintln!("claude-shim: I/O error at {}: {e}", ctx.show(&path));
             ExitCode::from(2)
         }
         Err(NewError::Statusline(e)) => {
-            eprintln!("{e}");
+            eprintln!("{}", e.show(ctx));
             ExitCode::from(2)
         }
     }
@@ -210,6 +223,7 @@ fn statusline_at(
     command: Option<String>,
     force: bool,
 ) -> ExitCode {
+    let ctx = PathCtx::new(cwd, Some(dirs.home));
     let requested = match (preset, command) {
         (Some(preset), None) => StatusLine::Preset(preset),
         (None, Some(command)) => StatusLine::Custom(command),
@@ -243,7 +257,7 @@ fn statusline_at(
     if !dir.is_dir() {
         eprintln!(
             "claude-shim: profile '{name}' does not exist at {}",
-            dir.display()
+            ctx.show(&dir)
         );
         return ExitCode::from(2);
     }
@@ -252,12 +266,12 @@ fn statusline_at(
         Ok(()) => {
             println!(
                 "set statusLine on profile '{name}' ({})",
-                settings_path.display()
+                ctx.show(&settings_path)
             );
             ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("{e}");
+            eprintln!("{}", e.show(ctx));
             ExitCode::from(2)
         }
     }
@@ -265,14 +279,15 @@ fn statusline_at(
 
 fn use_profile_at(
     cwd: &Path,
-    data_dir: &Path,
+    dirs: &Dirs,
     name: &str,
     workspace: bool,
     effort: Option<EffortLevel>,
 ) -> ExitCode {
-    match apply(cwd, data_dir, name, workspace, effort) {
+    let ctx = PathCtx::new(Some(cwd), Some(dirs.home));
+    match apply(cwd, dirs.data_dir, name, workspace, effort) {
         Ok(a) => {
-            println!("set profile '{name}' at {}", a.marker_path.display());
+            println!("set profile '{name}' at {}", ctx.show(&a.marker_path));
             ExitCode::SUCCESS
         }
         Err(UseError::InvalidName) => {
@@ -282,7 +297,7 @@ fn use_profile_at(
         Err(UseError::ProfileNotFound(p)) => {
             eprintln!(
                 "claude-shim: profile '{name}' does not exist at {}",
-                p.display()
+                ctx.show(&p)
             );
             eprintln!("hint: create it first with `claude-shim profile new {name}`");
             ExitCode::from(2)
@@ -290,18 +305,19 @@ fn use_profile_at(
         Err(UseError::MarkerAlreadyExists(p)) => {
             eprintln!(
                 "claude-shim: marker already exists at {} — remove it first to switch profiles",
-                p.display()
+                ctx.show(&p)
             );
             ExitCode::from(2)
         }
         Err(UseError::Io(path, e)) => {
-            eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            eprintln!("claude-shim: I/O error at {}: {e}", ctx.show(&path));
             ExitCode::from(2)
         }
     }
 }
 
 fn list_at(dirs: &Dirs, cwd: Option<&Path>, out: &mut impl Write) -> ExitCode {
+    let ctx = PathCtx::new(cwd, Some(dirs.home));
     let default_name =
         read_marker_file(&dirs.config_dir.join("claude-shim").join("default-profile"));
     let active_name = cwd.and_then(|cwd| {
@@ -334,7 +350,7 @@ fn list_at(dirs: &Dirs, cwd: Option<&Path>, out: &mut impl Write) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(ListError::Io(path, e)) => {
-            eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            eprintln!("claude-shim: I/O error at {}: {e}", ctx.show(&path));
             ExitCode::from(2)
         }
     }
@@ -350,6 +366,7 @@ fn effort_at(
     if local {
         return local_effort_at(dirs, cwd, level);
     }
+    let ctx = PathCtx::new(cwd, Some(dirs.home));
     let name = if let Some(name) = profile {
         name.to_owned()
     } else {
@@ -371,7 +388,7 @@ fn effort_at(
     if !dir.is_dir() {
         eprintln!(
             "claude-shim: profile '{name}' does not exist at {}",
-            dir.display()
+            ctx.show(&dir)
         );
         return ExitCode::from(2);
     }
@@ -381,12 +398,12 @@ fn effort_at(
             println!(
                 "set effort '{}' on profile '{name}' ({})",
                 level.as_token(),
-                config_path.display()
+                ctx.show(&config_path)
             );
             ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("claude-shim: I/O error at {}: {e}", config_path.display());
+            eprintln!("claude-shim: I/O error at {}: {e}", ctx.show(&config_path));
             ExitCode::from(2)
         }
     }
@@ -397,12 +414,13 @@ fn local_effort_at(dirs: &Dirs, cwd: Option<&Path>, level: EffortLevel) -> ExitC
         eprintln!("claude-shim: unable to read current directory");
         return ExitCode::from(2);
     };
+    let ctx = PathCtx::new(Some(cwd), Some(dirs.home));
     let hit = match find_project_marker(cwd, Some(dirs.home)) {
         Some(Ok(hit)) => hit,
         Some(Err(fault)) => {
             eprintln!(
                 "claude-shim: marker at {} is unusable ({})",
-                fault.path.display(),
+                ctx.show(&fault.path),
                 fault.reason
             );
             return ExitCode::from(2);
@@ -422,18 +440,19 @@ fn local_effort_at(dirs: &Dirs, cwd: Option<&Path>, level: EffortLevel) -> ExitC
                 "set effort '{}' on '{}' ({})",
                 level.as_token(),
                 hit.name,
-                hit.path.display()
+                ctx.show(&hit.path)
             );
             ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("claude-shim: I/O error at {}: {e}", hit.path.display());
+            eprintln!("claude-shim: I/O error at {}: {e}", ctx.show(&hit.path));
             ExitCode::from(2)
         }
     }
 }
 
-fn delete_at(data_dir: &Path, config_dir: &Path, name: &str, yes: bool) -> ExitCode {
+fn delete_at(dirs: &Dirs, cwd: Option<&Path>, name: &str, yes: bool) -> ExitCode {
+    let ctx = PathCtx::new(cwd, Some(dirs.home));
     // Without --yes this is a non-destructive preview, so it validates and reads
     // state here; the --yes path delegates every check to remove().
     if !yes {
@@ -441,25 +460,25 @@ fn delete_at(data_dir: &Path, config_dir: &Path, name: &str, yes: bool) -> ExitC
             eprintln!("claude-shim: invalid profile name '{name}'");
             return ExitCode::from(2);
         }
-        let dir = profile_dir(data_dir, name);
+        let dir = profile_dir(dirs.data_dir, name);
         if !dir.is_dir() {
             eprintln!(
                 "claude-shim: profile '{name}' does not exist at {}",
-                dir.display()
+                ctx.show(&dir)
             );
             return ExitCode::from(2);
         }
-        println!("would remove profile '{name}' at {}", dir.display());
-        let default_marker = config_dir.join("claude-shim").join("default-profile");
+        println!("would remove profile '{name}' at {}", ctx.show(&dir));
+        let default_marker = dirs.config_dir.join("claude-shim").join("default-profile");
         if read_marker_file(&default_marker).as_deref() == Some(name) {
             println!("'{name}' is the global default; its default marker would be cleared");
         }
         eprintln!("hint: re-run with `claude-shim profile delete {name} --yes`");
         return ExitCode::from(2);
     }
-    match remove(data_dir, config_dir, name) {
+    match remove(dirs.data_dir, dirs.config_dir, name) {
         Ok(r) => {
-            println!("deleted profile '{name}' at {}", r.profile_dir.display());
+            println!("deleted profile '{name}' at {}", ctx.show(&r.profile_dir));
             if r.cleared_default.is_some() {
                 println!("cleared the global default marker");
             }
@@ -472,12 +491,12 @@ fn delete_at(data_dir: &Path, config_dir: &Path, name: &str, yes: bool) -> ExitC
         Err(DeleteError::ProfileNotFound(p)) => {
             eprintln!(
                 "claude-shim: profile '{name}' does not exist at {}",
-                p.display()
+                ctx.show(&p)
             );
             ExitCode::from(2)
         }
         Err(DeleteError::Io(path, e)) => {
-            eprintln!("claude-shim: I/O error at {}: {e}", path.display());
+            eprintln!("claude-shim: I/O error at {}: {e}", ctx.show(&path));
             ExitCode::from(2)
         }
     }
@@ -689,18 +708,44 @@ fn write_settings(path: &Path, root: Map<String, Value>) -> Result<(), Statuslin
     std::fs::write(path, serialized).map_err(|e| StatuslineError::Io(path.to_path_buf(), e))
 }
 
-impl fmt::Display for StatuslineError {
+impl StatuslineError {
+    /// Pair this error with the display anchors so its embedded path shortens.
+    /// Rendering lives here rather than in a `Display` impl because the error
+    /// carries only the path — it cannot see cwd/home, which the print site holds.
+    fn show<'a>(&'a self, ctx: PathCtx<'a>) -> StatuslineErrorShown<'a> {
+        StatuslineErrorShown { err: self, ctx }
+    }
+}
+
+struct StatuslineErrorShown<'a> {
+    err: &'a StatuslineError,
+    ctx: PathCtx<'a>,
+}
+
+impl fmt::Display for StatuslineErrorShown<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::AlreadySet(p) => write!(
+        match self.err {
+            StatuslineError::AlreadySet(p) => write!(
                 f,
                 "claude-shim: statusLine already set in {} — pass --force to overwrite",
-                p.display()
+                self.ctx.show(p)
             ),
-            Self::NotAnObject(p) => write!(f, "claude-shim: {} is not a JSON object", p.display()),
-            Self::Parse(p, err) => write!(f, "claude-shim: failed to parse {}: {err}", p.display()),
-            Self::Serialize(err) => write!(f, "claude-shim: failed to serialize settings: {err}"),
-            Self::Io(p, err) => write!(f, "claude-shim: I/O error at {}: {err}", p.display()),
+            StatuslineError::NotAnObject(p) => {
+                write!(f, "claude-shim: {} is not a JSON object", self.ctx.show(p))
+            }
+            StatuslineError::Parse(p, err) => {
+                write!(
+                    f,
+                    "claude-shim: failed to parse {}: {err}",
+                    self.ctx.show(p)
+                )
+            }
+            StatuslineError::Serialize(err) => {
+                write!(f, "claude-shim: failed to serialize settings: {err}")
+            }
+            StatuslineError::Io(p, err) => {
+                write!(f, "claude-shim: I/O error at {}: {err}", self.ctx.show(p))
+            }
         }
     }
 }
@@ -896,7 +941,13 @@ fn on_write_error(e: &io::Error) -> ExitCode {
     }
 }
 
-fn emit(name: &str, data_dir: &Path, source: ProfileSource, out: &mut impl Write) -> ExitCode {
+fn emit(
+    name: &str,
+    data_dir: &Path,
+    source: ProfileSource,
+    ctx: PathCtx,
+    out: &mut impl Write,
+) -> ExitCode {
     let loud = matches!(source, ProfileSource::Project);
     if !is_valid_profile_name(name) {
         if loud {
@@ -914,7 +965,7 @@ fn emit(name: &str, data_dir: &Path, source: ProfileSource, out: &mut impl Write
     } else if loud {
         eprintln!(
             "claude-shim: profile '{name}' is referenced but {} does not exist",
-            dir.display()
+            ctx.show(&dir)
         );
         ExitCode::from(2)
     } else {

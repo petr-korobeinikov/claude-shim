@@ -1,4 +1,5 @@
 use super::*;
+use crate::render::PathCtx;
 use std::ffi::OsString;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -6,7 +7,9 @@ use tempfile::TempDir;
 
 #[test]
 fn shim_error_base_dirs_unavailable_renders() {
-    let msg = ShimError::BaseDirsUnavailable.to_string();
+    let msg = ShimError::BaseDirsUnavailable
+        .show(PathCtx::EMPTY)
+        .to_string();
     assert!(
         msg.contains("cannot resolve base directories"),
         "got: {msg}"
@@ -16,14 +19,16 @@ fn shim_error_base_dirs_unavailable_renders() {
 #[test]
 fn shim_error_cwd_unreadable_renders() {
     let err = io::Error::new(io::ErrorKind::PermissionDenied, "denied");
-    let msg = ShimError::CwdUnreadable(err).to_string();
+    let msg = ShimError::CwdUnreadable(err)
+        .show(PathCtx::EMPTY)
+        .to_string();
     assert!(msg.contains("cannot read current directory"), "got: {msg}");
     assert!(msg.contains("denied"), "got: {msg}");
 }
 
 #[test]
 fn shim_error_path_unset_renders() {
-    let msg = ShimError::PathUnset.to_string();
+    let msg = ShimError::PathUnset.show(PathCtx::EMPTY).to_string();
     assert!(msg.contains("PATH is unset"), "got: {msg}");
 }
 
@@ -32,6 +37,7 @@ fn shim_error_real_claude_not_found_renders_with_dir() {
     let msg = ShimError::RealClaudeNotFound {
         self_dir: Some(PathBuf::from("/some/shim/dir")),
     }
+    .show(PathCtx::EMPTY)
     .to_string();
     assert!(msg.contains("not found on PATH"), "got: {msg}");
     assert!(msg.contains("/some/shim/dir"), "got: {msg}");
@@ -40,7 +46,9 @@ fn shim_error_real_claude_not_found_renders_with_dir() {
 
 #[test]
 fn shim_error_real_claude_not_found_renders_without_dir() {
-    let msg = ShimError::RealClaudeNotFound { self_dir: None }.to_string();
+    let msg = ShimError::RealClaudeNotFound { self_dir: None }
+        .show(PathCtx::EMPTY)
+        .to_string();
     assert!(msg.contains("not found on PATH"), "got: {msg}");
     assert!(msg.contains("<unknown>"), "got: {msg}");
 }
@@ -52,6 +60,7 @@ fn shim_error_no_profile_in_scope_renders_key_paths() {
         home: PathBuf::from("/home/u"),
         default_marker: PathBuf::from("/cfg/claude-shim/default-profile"),
     }
+    .show(PathCtx::EMPTY)
     .to_string();
     assert!(msg.contains("no profile in scope"), "got: {msg}");
     assert!(msg.contains("/work/proj"), "got: {msg}");
@@ -63,12 +72,33 @@ fn shim_error_no_profile_in_scope_renders_key_paths() {
 }
 
 #[test]
+fn shim_error_shortens_paths_under_anchors() {
+    let msg = ShimError::NoProfileInScope {
+        cwd: PathBuf::from("/home/u/work/proj"),
+        home: PathBuf::from("/home/u"),
+        default_marker: PathBuf::from("/home/u/.config/claude-shim/default-profile"),
+    }
+    .show(PathCtx::new(
+        Some(Path::new("/home/u/work/proj")),
+        Some(Path::new("/home/u")),
+    ))
+    .to_string();
+    assert!(msg.contains("from ~/work/proj up to ~"), "got: {msg}");
+    assert!(
+        msg.contains("~/.config/claude-shim/default-profile"),
+        "got: {msg}"
+    );
+    assert!(!msg.contains("/home/u"), "no absolute home leaked: {msg}");
+}
+
+#[test]
 fn shim_error_profile_dir_missing_renders_name_and_paths() {
     let msg = ShimError::ProfileDirMissing {
         name: "nonexistent".to_string(),
         marker: PathBuf::from("/marker/path"),
         expected: PathBuf::from("/expected/dir"),
     }
+    .show(PathCtx::EMPTY)
     .to_string();
     assert!(msg.contains("'nonexistent'"), "got: {msg}");
     assert!(msg.contains("configured but missing"), "got: {msg}");
@@ -83,6 +113,7 @@ fn shim_error_exec_failed_renders() {
         path: PathBuf::from("/bin/claude"),
         error: err,
     }
+    .show(PathCtx::EMPTY)
     .to_string();
     assert!(msg.contains("failed to exec"), "got: {msg}");
     assert!(msg.contains("/bin/claude"), "got: {msg}");
@@ -324,6 +355,7 @@ fn shim_error_marker_unusable_renders() {
         path: PathBuf::from("/proj/.claude/claude-shim.json"),
         reason: "not a JSON object".to_string(),
     }
+    .show(PathCtx::EMPTY)
     .to_string();
     assert!(msg.contains("unusable"), "got: {msg}");
     assert!(msg.contains("/proj/.claude/claude-shim.json"), "got: {msg}");

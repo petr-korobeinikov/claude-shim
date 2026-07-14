@@ -15,6 +15,8 @@ teardown() { _common_teardown; }
     run "$CLAUDE_SHIM_BIN" profile new smoke
     [ "$status" -eq 0 ]
     [[ "$output" == *"created profile 'smoke'"* ]]
+    # The data dir lives under HOME, so the confirmation shortens it to ~/….
+    [[ "$output" == *"at ~/"* ]]
 
     local created
     created="$(path_after_at "${lines[0]}")"

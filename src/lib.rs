@@ -1,6 +1,7 @@
 mod cli;
 mod init;
 mod profile;
+mod render;
 pub mod shim;
 
 use std::process::ExitCode;

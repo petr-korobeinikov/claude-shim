@@ -6,6 +6,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::profile::{self, Dirs, EffortLevel, Resolution};
+use crate::render::PathCtx;
 
 mod exec;
 pub(crate) use exec::ensure_shim;
@@ -39,25 +40,41 @@ enum ShimError {
     },
 }
 
-impl fmt::Display for ShimError {
+impl ShimError {
+    /// Pair this error with the display anchors so its embedded paths shorten.
+    /// Rendering lives here rather than in a `Display` impl because the error
+    /// carries only paths — it cannot see cwd/home, which the print site (`run`)
+    /// holds.
+    fn show<'a>(&'a self, ctx: PathCtx<'a>) -> ShimErrorShown<'a> {
+        ShimErrorShown { err: self, ctx }
+    }
+}
+
+struct ShimErrorShown<'a> {
+    err: &'a ShimError,
+    ctx: PathCtx<'a>,
+}
+
+impl fmt::Display for ShimErrorShown<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::BaseDirsUnavailable => {
+        let ctx = self.ctx;
+        match self.err {
+            ShimError::BaseDirsUnavailable => {
                 write!(f, "claude-shim: cannot resolve base directories")
             }
-            Self::CwdUnreadable(e) => {
+            ShimError::CwdUnreadable(e) => {
                 write!(f, "claude-shim: cannot read current directory: {e}")
             }
-            Self::PathUnset => write!(f, "claude-shim: PATH is unset"),
-            Self::RealClaudeNotFound { self_dir } => write!(
+            ShimError::PathUnset => write!(f, "claude-shim: PATH is unset"),
+            ShimError::RealClaudeNotFound { self_dir } => write!(
                 f,
                 "claude-shim: real `claude` not found on PATH (excluded shim dir: {}).\n\
                  Install Claude Code first.",
                 self_dir
                     .as_deref()
-                    .map_or_else(|| "<unknown>".to_string(), |p| p.display().to_string()),
+                    .map_or_else(|| "<unknown>".to_string(), |p| ctx.show(p).to_string()),
             ),
-            Self::NoProfileInScope {
+            ShimError::NoProfileInScope {
                 cwd,
                 home,
                 default_marker,
@@ -69,12 +86,12 @@ impl fmt::Display for ShimError {
                  Pick a profile explicitly to avoid leaking credentials across contexts:\n  \
                  claude-shim profile use <name>     # for this project\n  \
                  echo <name> > {}    # as your default",
-                cwd.display(),
-                home.display(),
-                default_marker.display(),
-                default_marker.display(),
+                ctx.show(cwd),
+                ctx.show(home),
+                ctx.show(default_marker),
+                ctx.show(default_marker),
             ),
-            Self::ProfileDirMissing {
+            ShimError::ProfileDirMissing {
                 name,
                 marker,
                 expected,
@@ -85,19 +102,19 @@ impl fmt::Display for ShimError {
                  expected: {}\n\n\
                  Create the profile or fix the marker:\n  \
                  mkdir -p {}",
-                marker.display(),
-                expected.display(),
-                expected.display(),
+                ctx.show(marker),
+                ctx.show(expected),
+                ctx.show(expected),
             ),
-            Self::MarkerUnusable { path, reason } => write!(
+            ShimError::MarkerUnusable { path, reason } => write!(
                 f,
                 "claude-shim: refusing to run `claude` — the profile marker at {} is unusable ({reason}).\n\n\
                  Fix or recreate it:\n  \
                  claude-shim profile use <name>",
-                path.display(),
+                ctx.show(path),
             ),
-            Self::ExecFailed { path, error } => {
-                write!(f, "claude-shim: failed to exec {}: {error}", path.display())
+            ShimError::ExecFailed { path, error } => {
+                write!(f, "claude-shim: failed to exec {}: {error}", ctx.show(path))
             }
         }
     }
