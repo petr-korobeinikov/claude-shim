@@ -14,15 +14,14 @@ mise use -g github:petr-korobeinikov/claude-shim@latest
 ```
 :::
 
-Or build from source —
+Or install from crates.io —
 all install routes are in [Installation](/guide/installation):
 
 ```sh
-cargo build --release
+cargo install claude-shim
 ```
 
-The binary lands at `./target/release/claude-shim`.
-Put it on your `PATH`, or substitute its full path below.
+`cargo install` lands the binary in `~/.cargo/bin` (already on your `PATH` if you use cargo).
 
 ## 2. Wire up the shell hook
 
@@ -34,6 +33,10 @@ Add to `~/.zshrc` and re-source:
 ```sh
 eval "$(claude-shim init zsh)"
 ```
+
+::: info
+The shell hook is zsh-only for now.
+:::
 
 ## 3. Create a profile and point a project at it
 

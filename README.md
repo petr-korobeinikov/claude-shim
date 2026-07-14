@@ -45,18 +45,18 @@ so the right config is always active and always visible.
 
 ## Installation
 
-Build the binary —
-prebuilt release archives and a `mise` install are in the
+Install from crates.io —
+prebuilt release archives, a `mise` install, and a from-source build are in the
 [docs](https://petr-korobeinikov.github.io/claude-shim/guide/installation):
 
 ```sh
-cargo build --release
+cargo install claude-shim
 ```
 
+`cargo install` lands the binary in `~/.cargo/bin` (already on your `PATH` if you use cargo).
 The same binary doubles as the `claude` shim:
 it auto-creates the `claude` symlink on first run
 and resolves the real `claude` from your `PATH`.
-Put `./target/release/claude-shim` on your `PATH`, or substitute its full path below.
 
 Install the shell hook that exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt —
 add to `~/.zshrc` and re-source:
@@ -64,6 +64,9 @@ add to `~/.zshrc` and re-source:
 ```sh
 eval "$(claude-shim init zsh)"
 ```
+
+> [!NOTE]
+> Shell integration is zsh-only for now.
 
 Show the active profile in the prompt
 (minimal PS1; oh-my-posh variants are in the

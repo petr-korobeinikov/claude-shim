@@ -83,6 +83,10 @@ Otherwise substitute its full path.
 Installs a precmd hook that exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt.
 Required for both prompt-rendering paths in [Prompt indicator](/guide/prompt-indicator).
 
+::: info
+Only zsh is supported for now.
+:::
+
 Add to `~/.zshrc` and re-source:
 
 ```sh
