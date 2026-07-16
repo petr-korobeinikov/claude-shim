@@ -3,7 +3,7 @@ disable_backends = ["ubi", "asdf"]
 lockfile = true
 
 [tools]
-rust = { version = "1.95.0", components = "rustfmt,clippy,llvm-tools-preview" }
+rust = { version = "1.97.1", components = "rustfmt,clippy,llvm-tools" }
 node = "24.16.0"
 "aqua:bats-core/bats-core" = "1.13.0"
 "aqua:gittower/git-flow-next" = "1.1.0"
