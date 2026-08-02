@@ -78,19 +78,23 @@ impl fmt::Display for ShimErrorShown<'_> {
                 cwd,
                 home,
                 default_marker,
-            } => write!(
-                f,
-                "claude-shim: refusing to run `claude` — no profile in scope.\n  \
-                 searched .claude/claude-shim.json from {} up to {}\n  \
-                 and {}\n\n\
-                 Pick a profile explicitly to avoid leaking credentials across contexts:\n  \
-                 claude-shim profile use <name>     # for this project\n  \
-                 echo <name> > {}    # as your default",
-                ctx.show(cwd),
-                ctx.show(home),
-                ctx.show(default_marker),
-                ctx.show(default_marker),
-            ),
+            } => {
+                let marker_dir = default_marker.parent().unwrap_or(default_marker);
+                write!(
+                    f,
+                    "claude-shim: refusing to run `claude` — no profile in scope.\n  \
+                     searched .claude/claude-shim.json from {} up to {}\n  \
+                     and {}\n\n\
+                     Pick a profile explicitly to avoid leaking credentials across contexts:\n  \
+                     claude-shim profile use <name>     # for this project\n  \
+                     mkdir -p {} && echo <name> > {}    # as your default",
+                    ctx.show(cwd),
+                    ctx.show(home),
+                    ctx.show(default_marker),
+                    ctx.show_shell(marker_dir),
+                    ctx.show_shell(default_marker),
+                )
+            }
             ShimError::ProfileDirMissing {
                 name,
                 marker,
@@ -104,7 +108,7 @@ impl fmt::Display for ShimErrorShown<'_> {
                  mkdir -p {}",
                 ctx.show(marker),
                 ctx.show(expected),
-                ctx.show(expected),
+                ctx.show_shell(expected),
             ),
             ShimError::MarkerUnusable { path, reason } => write!(
                 f,

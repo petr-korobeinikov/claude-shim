@@ -5,7 +5,7 @@ use std::process::ExitCode;
 
 use serde_json::{Map, Value, json};
 
-use crate::render::PathCtx;
+use crate::render::{PathCtx, shell_quote};
 
 mod dispatch;
 mod marker;
@@ -299,7 +299,10 @@ fn use_profile_at(
                 "claude-shim: profile '{name}' does not exist at {}",
                 ctx.show(&p)
             );
-            eprintln!("hint: create it first with `claude-shim profile new {name}`");
+            eprintln!(
+                "hint: create it first with `claude-shim profile new {}`",
+                shell_quote(name)
+            );
             ExitCode::from(2)
         }
         Err(UseError::MarkerAlreadyExists(p)) => {
@@ -473,7 +476,10 @@ fn delete_at(dirs: &Dirs, cwd: Option<&Path>, name: &str, yes: bool) -> ExitCode
         if read_marker_file(&default_marker).as_deref() == Some(name) {
             println!("'{name}' is the global default; its default marker would be cleared");
         }
-        eprintln!("hint: re-run with `claude-shim profile delete {name} --yes`");
+        eprintln!(
+            "hint: re-run with `claude-shim profile delete {} --yes`",
+            shell_quote(name)
+        );
         return ExitCode::from(2);
     }
     match remove(dirs.data_dir, dirs.config_dir, name) {

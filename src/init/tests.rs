@@ -1,36 +1,6 @@
 use super::*;
 
 #[test]
-fn shell_quote_wraps_in_single_quotes() {
-    assert_eq!(shell_quote("simple"), "'simple'");
-}
-
-#[test]
-fn shell_quote_empty_string() {
-    assert_eq!(shell_quote(""), "''");
-}
-
-#[test]
-fn shell_quote_preserves_spaces() {
-    assert_eq!(shell_quote("with space"), "'with space'");
-}
-
-#[test]
-fn shell_quote_escapes_single_quote() {
-    assert_eq!(shell_quote("can't"), r"'can'\''t'");
-}
-
-#[test]
-fn shell_quote_only_a_quote() {
-    assert_eq!(shell_quote("'"), r"''\'''");
-}
-
-#[test]
-fn shell_quote_preserves_other_specials() {
-    assert_eq!(shell_quote("$(rm -rf /)"), "'$(rm -rf /)'");
-}
-
-#[test]
 fn zsh_substitutes_placeholders() {
     let snippet = zsh();
     assert!(

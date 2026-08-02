@@ -2,6 +2,8 @@ use std::env;
 
 use directories::BaseDirs;
 
+use crate::render::shell_quote;
+
 pub(crate) fn zsh() -> String {
     let exe = env::current_exe().ok().map_or_else(
         || "claude-shim".to_string(),
@@ -23,20 +25,6 @@ fn shims_dir() -> String {
                 .into_owned()
         },
     )
-}
-
-fn shell_quote(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('\'');
-    for c in s.chars() {
-        if c == '\'' {
-            out.push_str(r"'\''");
-        } else {
-            out.push(c);
-        }
-    }
-    out.push('\'');
-    out
 }
 
 const ZSH_TEMPLATE: &str = r#"# claude-shim zsh integration

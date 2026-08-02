@@ -92,6 +92,44 @@ fn shim_error_shortens_paths_under_anchors() {
 }
 
 #[test]
+fn shim_error_hints_are_shell_safe_and_cwd_independent() {
+    // Production always passes cwd (exec.rs); cwd == home is the worst case — an
+    // ancestor of both markers — where a cwd-relative render would drop the ~
+    // anchor. The hints must stay ~-anchored and quoted regardless.
+    let home = Path::new("/Users/u");
+    let ctx = PathCtx::new(Some(home), Some(home));
+
+    let no_profile = ShimError::NoProfileInScope {
+        cwd: home.to_path_buf(),
+        home: home.to_path_buf(),
+        default_marker: PathBuf::from(
+            "/Users/u/Library/Application Support/claude-shim/default-profile",
+        ),
+    }
+    .show(ctx)
+    .to_string();
+    assert!(
+        no_profile.contains(
+            "mkdir -p ~/'Library/Application Support/claude-shim' \
+             && echo <name> > ~/'Library/Application Support/claude-shim/default-profile'"
+        ),
+        "got: {no_profile}"
+    );
+
+    let missing = ShimError::ProfileDirMissing {
+        name: "work".to_string(),
+        marker: PathBuf::from("/Users/u/Library/Application Support/claude-shim/default-profile"),
+        expected: PathBuf::from("/Users/u/Library/Application Support/claude-shim/profiles/work"),
+    }
+    .show(ctx)
+    .to_string();
+    assert!(
+        missing.contains("mkdir -p ~/'Library/Application Support/claude-shim/profiles/work'"),
+        "got: {missing}"
+    );
+}
+
+#[test]
 fn shim_error_profile_dir_missing_renders_name_and_paths() {
     let msg = ShimError::ProfileDirMissing {
         name: "nonexistent".to_string(),
