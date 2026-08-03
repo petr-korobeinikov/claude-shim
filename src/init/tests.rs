@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use super::*;
 use crate::cli::Target;
 
@@ -11,6 +13,10 @@ fn zsh_substitutes_placeholders() {
     assert!(
         !snippet.contains("__CLAUDE_SHIM_SHIMS__"),
         "shims placeholder must be replaced"
+    );
+    assert!(
+        snippet.contains(&format!("_claude_shim_shims={}\n", shims_dir())),
+        "shims word must be substituted verbatim, not re-quoted"
     );
 }
 
@@ -64,6 +70,10 @@ fn bash_substitutes_placeholders() {
     assert!(
         !snippet.contains("__CLAUDE_SHIM_SHIMS__"),
         "shims placeholder must be replaced"
+    );
+    assert!(
+        snippet.contains(&format!("_claude_shim_shims={}\n", shims_dir())),
+        "shims word must be substituted verbatim, not re-quoted"
     );
 }
 
@@ -122,4 +132,22 @@ fn bash_uses_no_zsh_arrayisms() {
             "bash snippet must not contain zsh-ism: {zshism}"
         );
     }
+}
+
+#[test]
+fn shims_dir_under_a_data_dir_is_a_single_quoted_absolute_word() {
+    let word = render_shims_dir(Some(Path::new("/data")));
+    assert_eq!(word, "'/data/claude-shim/shims'");
+}
+
+#[test]
+fn shims_dir_single_quotes_a_data_dir_containing_a_space() {
+    let word = render_shims_dir(Some(Path::new("/Application Support")));
+    assert_eq!(word, "'/Application Support/claude-shim/shims'");
+}
+
+#[test]
+fn shims_dir_without_a_data_dir_defers_home_expansion_to_the_shell() {
+    let word = render_shims_dir(None);
+    assert_eq!(word, r#""${HOME:-}"/'.local/share/claude-shim/shims'"#);
 }

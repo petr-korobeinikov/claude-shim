@@ -1,4 +1,5 @@
 use std::env;
+use std::path::Path;
 
 use directories::BaseDirs;
 
@@ -16,20 +17,22 @@ pub(crate) fn snippet(target: Target) -> String {
     };
     template
         .replace("__CLAUDE_SHIM_BIN__", &shell_quote(&exe))
-        .replace("__CLAUDE_SHIM_SHIMS__", &shell_quote(&shims_dir()))
+        .replace("__CLAUDE_SHIM_SHIMS__", &shims_dir())
 }
 
 fn shims_dir() -> String {
-    BaseDirs::new().map_or_else(
-        || "$HOME/.local/share/claude-shim/shims".to_string(),
-        |b| {
-            b.data_dir()
-                .join("claude-shim")
-                .join("shims")
-                .to_string_lossy()
-                .into_owned()
-        },
-    )
+    let base = BaseDirs::new();
+    render_shims_dir(base.as_ref().map(BaseDirs::data_dir))
+}
+
+fn render_shims_dir(data_dir: Option<&Path>) -> String {
+    match data_dir {
+        Some(dir) => shell_quote(&dir.join("claude-shim").join("shims").to_string_lossy()),
+        None => format!(
+            "\"${{HOME:-}}\"/{}",
+            shell_quote(".local/share/claude-shim/shims")
+        ),
+    }
 }
 
 const ZSH_TEMPLATE: &str = r#"# claude-shim zsh integration
