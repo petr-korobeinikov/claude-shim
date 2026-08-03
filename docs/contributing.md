@@ -42,7 +42,7 @@ so a clean local commit means a green CI check.
 ## End-to-end tests
 
 Unit tests run under `cargo test`.
-End-to-end tests drive the real binary — and the zsh integration —
+End-to-end tests drive the real binary — and the zsh and bash integrations —
 with [bats-core](https://bats-core.readthedocs.io/),
 pinned in `mise.toml` and brought in by `mise install`.
 Build first, then run the suite:

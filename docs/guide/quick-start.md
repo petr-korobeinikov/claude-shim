@@ -28,14 +28,18 @@ cargo install claude-shim
 Keeps the shims dir first on your `PATH` so the `claude` shim is what runs.
 It also exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt
 as a secondary effect the optional prompt indicator consumes.
-Add to `~/.zshrc` and re-source:
+Add to your shell's startup file and re-source:
 
-```sh
+::: code-group
+
+```sh [zsh (~/.zshrc)]
 eval "$(claude-shim init zsh)"
 ```
 
-::: info
-The shell hook is zsh-only for now.
+```sh [bash (~/.bashrc)]
+eval "$(claude-shim init bash)"
+```
+
 :::
 
 ## 3. Create a profile and point a project at it

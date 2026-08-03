@@ -8,16 +8,14 @@ use std::process::ExitCode;
 
 use clap::Parser;
 
-use cli::{Cli, Command, ProfileAction, Target};
+use cli::{Cli, Command, ProfileAction};
 
 #[must_use]
 pub fn run() -> ExitCode {
     match Cli::parse().command {
-        Command::Init {
-            target: Target::Zsh,
-        } => {
+        Command::Init { target } => {
             shim::ensure_shim();
-            print!("{}", init::zsh());
+            print!("{}", init::snippet(target));
             ExitCode::SUCCESS
         }
         Command::Profile {

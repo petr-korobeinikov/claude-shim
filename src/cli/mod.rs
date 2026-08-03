@@ -94,6 +94,7 @@ pub(crate) enum ProfileAction {
 #[derive(Copy, Clone, ValueEnum)]
 pub(crate) enum Target {
     Zsh,
+    Bash,
 }
 
 #[cfg(test)]

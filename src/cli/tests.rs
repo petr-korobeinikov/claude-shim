@@ -12,6 +12,17 @@ fn parses_init_zsh() {
 }
 
 #[test]
+fn parses_init_bash() {
+    let cli = Cli::try_parse_from(["claude-shim", "init", "bash"]).unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Init {
+            target: Target::Bash
+        }
+    ));
+}
+
+#[test]
 fn parses_profile_current() {
     let cli = Cli::try_parse_from(["claude-shim", "profile", "current"]).unwrap();
     assert!(matches!(

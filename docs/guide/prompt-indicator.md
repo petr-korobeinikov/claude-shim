@@ -1,7 +1,7 @@
 # Prompt indicator
 
 Both styles read `CLAUDE_SHIM_ACTIVE_PROFILE`,
-which the [shell hook](/guide/installation#shell-integration-zsh) exports —
+which the [shell hook](/guide/installation#shell-integration) exports —
 set that up first.
 
 For the indicator inside Claude Code's own status bar (not the shell prompt),
@@ -11,9 +11,17 @@ Pick one of the styles below.
 
 ## Plain PS1
 
-```sh
+::: code-group
+
+```sh [zsh]
 PS1='%n@%m %~ ${CLAUDE_SHIM_ACTIVE_PROFILE:+[$CLAUDE_SHIM_ACTIVE_PROFILE] }%# '
 ```
+
+```sh [bash]
+PS1='\u@\h \w ${CLAUDE_SHIM_ACTIVE_PROFILE:+[$CLAUDE_SHIM_ACTIVE_PROFILE] }\$ '
+```
+
+:::
 
 ## oh-my-posh
 

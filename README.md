@@ -59,21 +59,34 @@ it auto-creates the `claude` symlink on first run
 and resolves the real `claude` from your `PATH`.
 
 Install the shell hook that exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt —
-add to `~/.zshrc` and re-source:
+add to your shell's startup file and re-source.
+
+For **zsh** (`~/.zshrc`):
 
 ```sh
 eval "$(claude-shim init zsh)"
 ```
 
-> [!NOTE]
-> Shell integration is zsh-only for now.
+For **bash** (`~/.bashrc`):
+
+```sh
+eval "$(claude-shim init bash)"
+```
 
 Show the active profile in the prompt
 (minimal PS1; oh-my-posh variants are in the
 [docs](https://petr-korobeinikov.github.io/claude-shim/guide/prompt-indicator)):
 
+For **zsh**:
+
 ```sh
 PS1='%n@%m %~ ${CLAUDE_SHIM_ACTIVE_PROFILE:+[$CLAUDE_SHIM_ACTIVE_PROFILE] }%# '
+```
+
+For **bash**:
+
+```sh
+PS1='\u@\h \w ${CLAUDE_SHIM_ACTIVE_PROFILE:+[$CLAUDE_SHIM_ACTIVE_PROFILE] }\$ '
 ```
 
 ## Usage
