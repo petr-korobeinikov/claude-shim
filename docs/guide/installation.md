@@ -16,7 +16,7 @@ attaches prebuilt archives:
   (Apple Silicon + Intel).
 
 ```sh
-ver=2026.7.0
+ver=2026.8.0
 base=https://github.com/petr-korobeinikov/claude-shim/releases/download
 curl -fsSL "$base/v$ver/claude-shim-$ver-x86_64-unknown-linux-musl.tar.gz" | tar xz
 ./claude-shim --version
