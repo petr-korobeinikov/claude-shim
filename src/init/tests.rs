@@ -25,7 +25,7 @@ fn zsh_keeps_shims_first_on_every_prompt() {
     let snippet = snippet(Target::Zsh);
     assert!(snippet.contains("_claude_shim_shims="));
     assert!(snippet.contains("_claude_shim_ensure_path()"));
-    assert!(snippet.contains(r#"path=("$_claude_shim_shims" "${(@)path:#$_claude_shim_shims}")"#));
+    assert!(snippet.contains(r#"path=("$_claude_shim_shims" "#));
     // Initial call right after defining the function.
     assert!(snippet.contains("\n_claude_shim_ensure_path\n"));
     // And on every prompt — first line inside _claude_shim_precmd.
@@ -40,6 +40,15 @@ fn zsh_keeps_shims_first_on_every_prompt() {
             .any(|l| l.contains("_claude_shim_ensure_path")),
         "ensure_path call must be inside precmd"
     );
+}
+
+#[test]
+fn zsh_dedup_pattern_treats_the_path_as_a_literal() {
+    // The pattern half of ${(@)path:#pat} goes glob-active under GLOB_SUBST; the
+    // path must be quoted there so a shims dir containing * ? [ dedups literally
+    // instead of dropping unrelated PATH entries.
+    let snippet = snippet(Target::Zsh);
+    assert!(snippet.contains(r#""${(@)path:#"$_claude_shim_shims"}""#));
 }
 
 #[test]

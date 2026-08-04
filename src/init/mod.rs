@@ -43,7 +43,7 @@ typeset -g _claude_shim_shims=__CLAUDE_SHIM_SHIMS__
 # prepends from mise/brew/sdkman/etc. so the eval line can sit anywhere
 # in ~/.zshrc, not strictly at the end.
 _claude_shim_ensure_path() {
-    path=("$_claude_shim_shims" "${(@)path:#$_claude_shim_shims}")
+    path=("$_claude_shim_shims" "${(@)path:#"$_claude_shim_shims"}")
 }
 _claude_shim_ensure_path
 
