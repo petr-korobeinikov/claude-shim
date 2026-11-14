@@ -1,0 +1,162 @@
+# CLAUDE.md
+
+Spec-driven development on **OpenSpec**, Claude-only:
+a change is planned as an OpenSpec change before its code is written,
+unless it leaves every spec true.
+
+## Sessions
+
+- **A session plans or implements, never both,
+  and ends with every file it wrote committed:**
+  no session hands uncommitted work to the next.
+- **Nothing is committed to `develop` or to a `feature/` or `bugfix/` branch
+  before the operator has reviewed its diff;**
+  a passing hook or a request to finish does not replace it.
+- **Memory keeps decisions and preferences, the direction included,
+  never the state of work:**
+  what is planned, uncommitted or under review is read from git and `openspec list`.
+- **Replies are concrete, dry and strictly to the point:**
+  the answer first, no filler, no recap.
+  A full screen is justified only by substance;
+  half a screen of filler is already too much.
+
+## Planning
+
+- **One OpenSpec change per session — per agent when several are planned at once — and no code,**
+  not even in a scratch clone.
+  Planning starts on `develop` with a clean tree,
+  a replan of a change under implementation on its branch,
+  and each artifact follows what `openspec instructions <artifact> --change <id>` returns.
+  A fact the docs and the code cannot settle is probed only with the operator's yes,
+  or recorded as an assumption that the first task checks.
+- **Before writing, the session says how hard the change is, and why, in one line,
+  and offers the model and effort for it:**
+
+  | Change | Model | Effort |
+  | --- | --- | --- |
+  | Relatively simple | Opus 5.5 | `high`, its default |
+  | Complex or very complex | Opus 5.5 | `max` |
+  | Needs very deep study and understanding | the newest Fable | `max` |
+
+  The operator switches or not, and the session goes on with whatever is set.
+  The proposal records how hard the change is: that decides where it is implemented.
+- **A plan lands on `develop` as one commit, `chore(openspec): plan <id>`,**
+  and touches nothing outside `openspec/changes/`;
+  no branch is started or finished for it.
+- **A set of changes that depend on each other is better not planned ahead:**
+  keep the direction in a roadmap or in memory,
+  and plan each change once the one it builds on has been applied.
+  A plan that does build on queued ones accounts for them,
+  as the `rules` in `openspec/config.yaml` require.
+  Queued plans are applied in an order that follows from what each builds on,
+  or that the operator sets.
+- **Before a plan lands, three checks pass:**
+  `wc -w` keeps its artifacts within the budgets in `openspec/config.yaml`;
+  `openspec validate <id> --strict` passes;
+  and in a copy of the repository, never in the checkout,
+  `openspec archive -y` runs for every queued plan in order, this one last,
+  after which `openspec validate --specs --strict` flags no spec it did not flag before the archives.
+- **A replan is planning, too:**
+  a session of its own and one commit, `chore(openspec): replan <id>` —
+  on `develop` while the plan is queued, on its branch once it is under implementation —
+  and every plan queued after it passes the checks again.
+- **Several plans at once take one agent per plan, run by one session:**
+  - Before the launch, the operator confirms the number of agents,
+    their model and effort by the table above, and the items.
+  - The session maps what the items share — symbols, requirements, files —
+    and which plan answers for each.
+    Items that change one symbol or requirement are chained, not run side by side.
+  - Each agent works in its own worktree under `.claude/worktrees/`,
+    cut before its launch from the local `develop` commit,
+    or, in a chain, from the commit of the agent before it.
+    It writes one plan by the rules above, asks nothing,
+    marks in its proposal each arguable decision for the operator to strike,
+    runs the three checks, and commits on its own branch.
+  - The session brings every plan into the checkout, staged, where the IDE shows it,
+    reads each whole — a report is a claim —
+    and fixes what lies between them:
+    a symbol nothing reads any more, or one added for a neighbor;
+    one thing written under two plans;
+    a requirement two plans change;
+    a count that ignores the plans before it.
+    It runs the checks on the whole queue,
+    and after the operator's review lands each plan as one commit, in order.
+  - The agents' branches and worktrees stay until the operator removes them.
+
+## Implementation
+
+- **An implementation session works on one change, on Opus 5.5 at `high`, its default.**
+- **Implemented, a change reaches `develop` as one commit with all of it:**
+  code, tests, ticked tasks and, for a planned change, the specs it changes and its archived plan.
+  No fix-up, sync or archive commit follows it.
+  Its subject is the one the proposal names, reviewed with the plan,
+  and a replan that changes what the change does rewrites it;
+  a change with no plan gets its subject at the commit.
+- **Where it is made depends on the change:**
+  - a simple change that leaves every spec in `openspec/specs/` true needs no plan
+    and is made on `develop`;
+  - a planned change its proposal calls simple is implemented on `develop`;
+  - a planned change its proposal calls complex, or harder,
+    is implemented on `feature/<id>`, started with `git flow feature start <id>`,
+    so it can be pushed for the team's review.
+- **On `feature/<id>`, commits follow the work:**
+  each logical, self-contained and green, in the order a reviewer reads them;
+  nothing is squashed while the work goes on.
+  `git flow feature finish <id> --squash-message "<the proposal's subject>"` lands the branch as its one commit:
+  `.gitflow` squashes features, and only the flag gives the subject.
+- **Once the last task is done, `openspec archive <id> -y`**
+  applies the change's deltas to `openspec/specs/` and moves the change into `openspec/changes/archive/`:
+  on `develop` within the change's one commit,
+  on a branch within its last commit before the finish.
+- **Before the finish, the operator reviews `git diff develop...feature/<id>`**
+  against the subject the proposal names.
+- **A stop** — a decision the plan did not make, or a change wider than its specs —
+  first moves a change made on `develop` to `feature/<id>`,
+  as `git flow feature start <id>` takes the uncommitted work along.
+  The finished tasks are committed, the unfinished task's code is dropped,
+  the replan lands as a commit on the branch, and a fresh session resumes.
+- **A `feature/` or `bugfix/` branch may be rebased onto `develop` and force-pushed;
+  no other branch ever is.**
+
+## Commits and releases
+
+Commit messages follow Conventional Commits, in English:
+`type: description`, as the history has them —
+`feat: add a profile delete command`, `chore: release 2026.8.0`.
+A scope is optional and rare:
+`chore(openspec): plan <id>` is the one the process writes.
+The subject is in the imperative mood,
+lowercase after the prefix,
+without a closing period,
+72 characters at most and 50 where it can be.
+
+A commit that changes behavior, docs or tooling carries a body
+that says why, wrapped at 72 characters;
+a release or a version bump is the subject line alone.
+Without a body the message is the subject line alone;
+with one, a blank line separates it from the subject,
+and trailers, if any, close the message after another blank line.
+No line credits an AI agent or model in any form —
+no `Co-Authored-By:` trailer for a machine address,
+no "Generated with" line;
+every other trailer is allowed.
+
+A release is named `YYYY.M.MICRO`:
+the year, the month without a leading zero,
+and the count of releases cut earlier that month, from 0.
+Without the leading zero the name is valid SemVer,
+and a later release sorts above an earlier one.
+A pre-release appends `-beta.N` — `2026.7.0-beta.1`.
+Its tag is `v` followed by the name —
+`v2026.10.0`, put by `git flow release finish 2026.10.0`,
+whose `tagPrefix` is `v` in `.gitflow`;
+the tag triggers `.github/workflows/release.yml`.
+The sources carry the name, never the `v`:
+`version` in `Cargo.toml`.
+
+## Generated files
+
+The `openspec-*` skills under `.agents/skills/` and their links under `.claude/skills/` are generated —
+regenerate them via `mise exec -- openspec update`, don't hand-edit.
+The other skills under `.claude/skills/` are restored from `skills-lock.json`
+and never committed.

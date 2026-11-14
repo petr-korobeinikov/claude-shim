@@ -1,0 +1,230 @@
+schema: spec-driven
+
+# Project context. Injected into every artifact instruction and into the
+# apply / archive operations.
+context: |
+  ## Working agreement
+
+  The reader is a peer, not a customer: twenty years of backend engineering,
+  mobile development since 2012. No basics, no hand-holding, no restating
+  what the code already says. Name the trade-off instead of listing every
+  option. Push back on a decision that looks wrong and say why; silent
+  agreement is worse than an argument.
+
+  claude-shim is released: a Rust CLI on crates.io that runs Claude Code
+  under named profiles by pointing `CLAUDE_CONFIG_DIR` at a per-profile
+  directory, tagged `vYYYY.M.MICRO`. Its public contract is the command
+  line (commands, flags, output, exit codes), the environment it reads and
+  sets, the profile layout on disk, and the code `claude-shim init` prints
+  for zsh and bash. A change that moves any of it names who breaks and how
+  existing state migrates. Do not invent a domain fact, a file layout or a
+  dependency to fill a gap - propose it as a decision and ask, or say
+  plainly that the change cannot be specified until that decision is made.
+
+  Claude Code is a moving target, and much of what the shim relies on is
+  undocumented. A behavior of Claude Code a change rests on is cited - a
+  docs link, or a probe of the real binary with the version it ran on - and
+  is never asserted from memory; one that cannot be cited yet is recorded
+  as an assumption that the first task checks.
+
+  ## Scope
+
+  A change fits in one head and is checked in one sitting. Content that will
+  not fit the budgets under Writing means the change is split along capability
+  boundaries; a scenario is never dropped to fit.
+
+  ## Writing
+
+  Words cost the reader's time: cut words, never content.
+
+  - Concrete over descriptive: a number, a path, a type, a command or an error
+    text - not an adjective, and not a summary of one.
+  - Each fact lives in one artifact - why in the proposal, what in the spec,
+    how in the design, steps and results in the tasks - and the others point
+    to it.
+  - A decision is one bullet: the choice, the alternative it beat, and the
+    reason in one sentence.
+  - A table replaces paragraphs whenever the items share fields.
+  - No throat-clearing ("worth noting", "importantly", "in order to"), and no
+    narration of what was done - the diff shows that.
+  - Budgets, in words, for a change's artifacts: proposal 600, design 800,
+    each spec document 500, tasks 600 as planned, and three lines of notes
+    under each task once it is done. `wc -w` checks them before the plan is
+    committed; up to a tenth over passes, beyond that words are cut.
+
+  ## Architecture
+
+  The deterministic core - profile management, rendering, the profile
+  marker, argument parsing - decides; the glue - `main.rs`, `lib.rs`,
+  `profile/dispatch.rs`, `shim/exec.rs` - only wires the core to the
+  process: arguments, environment, `exec`. Glue stays thin enough to need
+  no unit test, which is why the coverage task in `mise.toml` excludes it;
+  logic that grows there moves into the core. New core code takes what it
+  reads from the environment or the file system as parameters, so it is
+  tested on the host against a `tempfile` directory.
+
+  Three suites check the work: unit tests in each module's sibling
+  `tests.rs`, run by `cargo test`; `cargo clippy --all-targets -- -D
+  warnings` with clippy's pedantic group; and end-to-end tests in `e2e/`,
+  run by `mise run e2e` after `cargo build`, which drive the real binary
+  and the zsh and bash integrations under a throwaway `HOME`. A behavior a
+  user observes through the binary or the shell is pinned in `e2e/`.
+
+  The toolchain is pinned in `mise.toml` with every version in full, and
+  `mise.lock` and `.mise/locks/` are written only by mise - never deleted,
+  never recreated by hand. A new crate in `Cargo.toml` is a decision of its
+  own, audited in the proposal.
+
+  ## Engineering
+
+  Canonical TDD, and it binds the business logic: write the failing test,
+  watch it fail for the right reason, write the minimum code that passes,
+  then refactor with the suite green. A task is never marked complete while
+  a test is failing or ignored; report the failure instead.
+
+  The rules below bind the code a change writes or rewrites. Existing code
+  that breaks them is moved only by a housekeeping change, never in passing.
+
+  A type does one job, stated in one sentence with no "and"; outgrowing a
+  screen is a signal to look for the seam, never a license to split by moving
+  code to a second file. Identifiers are spelled in full - types, fields,
+  parameters, locals and JSON keys alike. A short form survives only where it
+  is the domain's own name (`id`, `url`, `env`), and a name is never shortened
+  to fit a line. A place counted from zero, as a list counts, is a `position`;
+  one counted from one, as the reader counts, is a `number`. A `use` names
+  what it brings in: no glob import, so the reader sees where each name
+  comes from.
+
+  English is American English, its spelling and its words, in everything
+  the project names or writes: identifiers, modules, files and folders,
+  JSON keys, environment variables, command and flag names, branch, change
+  and capability ids, specs, docs, comments, commit messages and every text
+  a user reads - `color`, `behavior`, `initialize`, `canceled`, `license`.
+  A name the project does not own keeps its owner's spelling: a crate's or
+  Claude Code's API, another party's file format, a proper name, a
+  quotation. A name the public has already received - a command, a flag, an
+  environment variable, a file in a profile - moves only by a change of its
+  own, which keeps the old name working beside the new one while an older
+  user remains, and migrates what is stored rather than dropping it.
+
+  A type is named for its subject, then its role. A type that does a job is
+  named for it: the agent noun of its verb, `-er` or `-or`, with that verb
+  for its method - `ProfileRenderer::render` - and a binding holding it takes
+  that name (`profile_renderer`). A type that does no job keeps its noun
+  (`ProfileName`, `EffortLevel`). An implementation of a trait puts what it
+  rests on before the trait's name (`FileProfileStore`), `Default` when it
+  rests on nothing of its own; a test's double puts `Fake`, `InMemory` or
+  what it does instead (`FailingProfileStore`). A module is named for its
+  subject (`profile`, `render`).
+
+  A type and a value of it are named in the singular, for what one of them
+  is: an enum of sizes is a `Size`, and its variant reads `Size::Large`.
+  Where a name means many, it is the singular and then `list` -
+  `profile_list`, never `profiles` - whatever the collection type, and alike
+  for a type, a field, a parameter and a local. A plural stays only where
+  English has no singular (`news`).
+
+  A closure names its parameter for what it holds, a one-liner too -
+  `|line| line.contains(marker)`, never `|l|` or `|x|`; a path to a function
+  needs none (`.map(Path::new)`).
+
+  The design follows SOLID, and two of its letters do the daily work. A type
+  does one job, as above. A dependency points at an abstraction rather than at
+  whatever fulfills it: the core names what it needs - a trait, or plain data -
+  and the glue supplies it, never the reverse. A trait is written for one
+  consumer - a second consumer that needs half of it is asking for a second
+  trait.
+
+  Code is read one screen at a time. A function that does not fit on one, or a
+  type that needs more than two, has a seam waiting to be found. In numbers:
+  a function runs to at most 40 lines and a type's `impl` to 120; an `impl`
+  holds at most 8 functions; a function takes at most 4 parameters, a
+  constructor 5; blocks nest at most 3 deep; cognitive complexity stays
+  within 10 and cyclomatic within 8. Clippy gates what it counts, with its
+  own thresholds; the numbers here are stricter, and the rest is on the
+  author.
+
+  A comment is written only where it is needed, and it says what the code
+  cannot: why it is written this way - the constraint it obeys, the trap it
+  avoids, the source it follows. Clear code carries none, and a comment that
+  restates what the code does is deleted, doc comments included. Code that
+  cannot be read without one is renamed or split at its seam first, and
+  commented only if it still cannot. A directive to a tool - a shebang, an
+  `#[allow]` - is code, not a comment, and stays.
+
+  ## Housekeeping
+
+  A housekeeping change reads `README.md` and `docs/` against the tree as a
+  task of its own: a statement there outlives the change that made it true,
+  and the next reader, often an agent, acts on it. It does not read every
+  comment again: the comment rule under Engineering holds each one to its
+  why whenever the code under it changes. A call changes form - a closure's
+  parameter - only when its code changes for another reason, never in a pass
+  of its own, whose diff costs more than the form gives.
+
+  A housekeeping pass opens with an audit split by dimension - names, the
+  statements comments, the README and the docs make, structure and build,
+  tests - in which each auditor only reads, citing every finding by file and
+  line with its count and the rule it breaks. The reports stay beside the
+  repository, outside version control, for every plan after them to draw on.
+
+  Every finding the audit leaves open is planned as a change of its own, and
+  none is dropped at planning: one the rules above weigh as poor payback is
+  planned all the same, saying so in its Why for the owner to strike. The
+  changes land in this order: first what ships or misleads - the released
+  binary's behavior, a test that passes without proving anything, a statement
+  that is false - then names, then structure and build, then reuse, and last
+  the coverage still missing. Each builds on the tree its predecessors leave,
+  so each is planned only once the one before it has been applied, and counts
+  its tables on that tree.
+
+  A rename is proved to be one: every suite's count and the test total
+  stand as before, version control shows each moved file as a rename, and a
+  search for every old name finds only what the plan keeps.
+
+# Per-artifact rules, additive to the schema's own guidance.
+rules:
+  proposal:
+    - "Use a kebab-case change id that is also a valid git branch name; implemented on a branch, the change takes it as `feature/<id>`."
+    - "Say in one line how hard the change is - relatively simple, complex, or needing very deep study - and why: a simple change is implemented on `develop`, any other on `feature/<id>`."
+    - "Name the queued plans the change builds on, in apply order, or say it builds on `develop` alone."
+    - "Name the subject the change will land on `develop` with, in the Conventional Commits form `CLAUDE.md` gives - `feat: add a profile rename command`."
+    - "Name every unmade decision the change rests on and propose it in Why; a proposal that quietly assumes one is not ready."
+    - "Say whether the change moves the public contract - a command, a flag, output, an exit code, an environment variable, the profile layout, the shell-init code - and if it does, who breaks and how existing state migrates."
+    - "If the Capabilities section cannot be delivered inside the spec budget, propose several changes instead of one and say in Why which one comes first."
+    - "Why opens with one paragraph: the problem, its evidence in numbers or names, and why now. Decisions follow as bullets."
+    - "A dependency's audit is a table - version, license, source, known vulnerabilities, transitive artifacts - with prose only for a finding."
+  specs:
+    - "A spec whose requirements will not fit the budget is split along capability boundaries - the overflow becomes its own spec, or its own change when it carries tasks of its own."
+    - "Every requirement must be verifiable as written; if the check cannot be named, the requirement is not specific enough yet."
+    - "State the behavior a user observes - a command, its output, its exit code, a file on disk, an environment variable - not the Rust that produces it: a requirement naming a type or a function belongs in design instead."
+    - "A requirement that rests on a behavior of Claude Code cites it - a docs link, or a probe with the version it ran on."
+    - "A requirement a queued plan also changes is MODIFIED from that plan's text, carried whole."
+    - "A spec that creates a capability opens with its `## Purpose`, 50 characters at least: the archive writes it into the new main spec, and `--strict` refuses the placeholder written otherwise."
+  design:
+    - "Say which layer the behavior lands in - the core, the glue, or the shell integration - and keep the glue free of decisions."
+    - "State how each part is tested - a unit test in its module's `tests.rs`, an end-to-end test in `e2e/` - and name the seam that makes it possible; a design with no test seam is not done."
+    - "Name each type's one job in a sentence with no \"and\"; needing one means the design holds two types."
+    - "Record a decision only where there was a real alternative; a design with none says so in one line instead of filling its sections."
+    - "A risk is one line: the risk, an arrow, the mitigation."
+  tasks:
+    - "Order tasks test-first: a task that changes business logic opens with the failing test that pins it."
+    - "Keep each task independently verifiable - it ends with a green suite, not with work left dangling for the next task."
+    - "Name how each task is checked - `cargo test`, `cargo clippy --all-targets -- -D warnings`, `mise run e2e`, or the observation that proves it done; a task with no check is not a task."
+    - "A task is a step and its check in at most 60 words; its reason lives in the design, and the task points there."
+    - "A count the queued plans change, such as a test total, is the base plus their deltas, marked expected."
+
+# Per-operation advisory guidance. Only `apply` and `archive` are supported.
+operations:
+  apply:
+    guidance:
+      - "Run red-green-refactor per task: write the test, run it and see it fail for the right reason, then write the code that makes it pass."
+      - "Red-green-refactor is the rule for the core; glue that only wires the core to the process is not held to it, and glue that needs a test of its own is holding logic that belongs in the core."
+      - "A behavior a user observes through the binary or the shell gets its end-to-end test in `e2e/` beside the unit tests."
+      - "Never mark a task complete while a test is failing or ignored; report the failure instead."
+      - "If implementation reveals the change is wider than its specs described, stop and raise it for a split rather than growing the specs to match."
+      - "If implementation forces a decision the proposal did not make, stop and raise it; do not settle it silently in code."
+      - "Under a finished task, write only what the diff cannot show: numbers measured, deviations from the plan, decisions surfaced and who made them."
+  archive:
+    guidance:
+      - "Say what the change left undecided - decisions surfaced while implementing and deliberately deferred - one line each, so the next proposal can pick them up."

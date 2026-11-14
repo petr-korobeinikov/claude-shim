@@ -7,37 +7,72 @@ community contribution guidelines will be added in a later update.
 
 ## Git flow setup
 
-Run once per fresh working copy to wire up the local Gitflow workflow.
 Tooling is pinned in `mise.toml`
 (git-flow-next via the `aqua` backend),
 so `mise install` brings in `git-flow` along with the Rust toolchain.
+The branch model itself is committed in `.gitflow`,
+so it survives cloning — `.git/config` does not.
+Copy it into `.git/config` once per fresh working copy:
 
 ```sh
 mise install
-git flow init --preset=classic --defaults
-git config gitflow.branch.feature.upstreamstrategy rebase
+git flow config sync
 ```
 
-The `upstreamstrategy=rebase` key enables the local-finish workflow:
-`git flow feature finish` rebases the feature branch onto `develop` linearly,
-no merge commit.
-Collapse the feature into a single commit
-(`git rebase -i $(git merge-base HEAD develop)`)
-before running `feature finish`.
+`main` and `develop` are the long-lived branches.
+Feature and bugfix branches are squashed into one commit on finish,
+with the subject given on the command line:
+
+```sh
+git flow feature start <id>
+git flow feature finish <id> --squash-message "<subject>"
+```
+
+Releases and hotfixes merge and tag `v<version>`.
 
 ## Pre-commit hooks
 
 `mise install` also brings in `prek`
-(a Rust drop-in for `pre-commit`, pinned in `mise.toml`),
-so local commits run the same `cargo fmt` / `clippy` gates as CI.
-Wire the hook into `.git/hooks/` once per fresh working copy:
+(a Rust drop-in for `pre-commit`, pinned in `mise.toml`, configured in `prek.toml`).
+Wire both git hooks into `.git/hooks/` once per fresh working copy,
+and again after a prek upgrade —
+the installed hooks pin the path of the prek binary, and that path carries the version:
 
 ```sh
 prek install
 ```
 
-The hooks in `.pre-commit-config.yaml` mirror `.github/workflows/ci.yml`,
+At `pre-commit`, prek runs its built-in file-hygiene checks
+and the `cargo fmt` / `clippy` gates,
+which mirror `.github/workflows/ci.yml`,
 so a clean local commit means a green CI check.
+At `commit-msg`, it refuses a subject over 72 characters,
+a subject that is not Conventional Commits,
+and a line that credits an AI agent or a model.
+
+```sh
+prek run --all-files   # every pre-commit hook over the whole tree
+```
+
+## Spec-driven development
+
+Changes are planned with [OpenSpec](https://github.com/Fission-AI/OpenSpec)
+(pinned in `mise.toml`) before their code is written,
+driven from Claude Code via the `openspec-*` skills.
+`CLAUDE.md` holds the process,
+and `openspec/config.yaml` the rules every plan follows.
+In short:
+a plan is one OpenSpec change,
+committed on `develop` as `chore(openspec): plan <id>`;
+a simple change is implemented on `develop`,
+a complex one on `feature/<id>`,
+and either reaches `develop` as one commit
+with its code, tests, specs and archived plan.
+
+```sh
+mise exec -- openspec list   # changes planned and under way
+mise exec -- openspec view   # browse specs and changes
+```
 
 ## End-to-end tests
 
@@ -58,7 +93,9 @@ so your real profiles stay untouched.
 ## Claude Code skills
 
 `skills-lock.json` pins the Claude Code skill set this repo expects.
-Skills are materialized into `.claude/skills/` (gitignored).
+Skills are materialized into `.claude/skills/` (gitignored,
+except the links to the `openspec-*` skills OpenSpec generates,
+which are committed along with the skills themselves in `.agents/skills/`).
 Install them on a fresh working copy with the `skills` CLI:
 
 ```sh

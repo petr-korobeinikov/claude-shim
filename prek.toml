@@ -1,0 +1,79 @@
+# prek — https://prek.j178.dev/ — installed from mise (aqua:j178/prek) and wired into
+# .git/hooks by `prek install`.
+#
+# Every file-hygiene hook here is one of prek's own Rust implementations (repo = "builtin"),
+# and the Rust gates are local commands, so this repository clones no hook repositories and
+# pins no third-party revs: there is nothing to `prek update` and nothing extra to audit.
+
+# The message gates at the end read the commit message, so `prek install` wires commit-msg
+# too. Every other hook stays at pre-commit: left on every stage, they would run on the
+# message as well, and mixed-line-ending would rewrite it.
+default_install_hook_types = ["pre-commit", "commit-msg"]
+default_stages = ["pre-commit"]
+
+[[repos]]
+repo = "builtin"
+hooks = [
+  # `auto` converts to whichever ending already dominates the file, so a CRLF file stays
+  # CRLF on its own terms rather than by an exception.
+  { id = "mixed-line-ending", args = ["--fix", "auto"] },
+  # Markdown pays for a trailing double space: there it is a hard line break, not dirt.
+  { id = "trailing-whitespace", args = ["--markdown-linebreak-ext", "md"] },
+  { id = "end-of-file-fixer" },
+  { id = "check-merge-conflict" },
+  { id = "check-added-large-files" },
+  { id = "check-case-conflict" },
+  { id = "detect-private-key" },
+  { id = "check-symlinks" },
+  { id = "destroyed-symlinks" },
+  # Syntax gates; each runs only on files of its own format.
+  { id = "check-toml" },
+  { id = "check-yaml" },
+  { id = "check-json" },
+  { id = "check-xml" },
+]
+
+# The Rust gates mirror .github/workflows/ci.yml byte-for-byte, so local and CI never
+# diverge.
+[[repos]]
+repo = "local"
+hooks = [
+  { id = "cargo-fmt", name = "cargo fmt --check", entry = "cargo fmt --check", language = "system", types = ["rust"], pass_filenames = false },
+  { id = "cargo-clippy", name = "cargo clippy --all-targets -- -D warnings", entry = "cargo clippy --all-targets -- -D warnings", language = "system", types = ["rust"], pass_filenames = false },
+]
+
+# A subject over 72 characters wraps in `git log --oneline`. The pattern reads the subject
+# as git stores it: past the blank and #-comment lines a squash or a template opens with,
+# in characters rather than bytes, and without the trailing whitespace git strips — the
+# closing \S. --multiline hands it the whole file and lets `.` cross lines, hence [^\n].
+[[repos]]
+repo = "builtin"
+
+[[repos.hooks]]
+id = "deny-pattern"
+name = "commit subject (72 characters at most)"
+description = "Shorten the subject; anything more goes in the body, after a blank line"
+stages = ["commit-msg"]
+args = ["--multiline", '\A(?:[ \t]*\n|#[^\n]*\n)*[^#\n][^\n]{71}[^\n]*\S']
+
+# The same subject, read as Conventional Commits: `type(scope)!: description`, the scope and
+# the `!` optional. git's own subjects pass as they are: a merge, which git-flow's finish
+# makes and which runs commit-msg, a revert, and the fixup!, squash! and amend! of autosquash.
+[[repos.hooks]]
+id = "deny-pattern"
+name = "commit subject (Conventional Commits)"
+description = "Write the subject as type(scope): description, as in feat(catalog): add a filter"
+stages = ["commit-msg"]
+args = ["--multiline", '\A(?:[ \t]*\n|#[^\n]*\n)*(?![a-z]+(?:\([^()\n]+\))?!?: \S|Merge |Revert "|(?:fixup|squash|amend)! )[^#\n]']
+
+# No line past the subject credits an AI agent or a model: a line that opens with `Token: `
+# — a trailer, or any body line written that way — or holds "Generated with" or "Generated
+# by" is refused once it names one further on. The names are a list, so a new agent has to
+# be added to it, and a name refuses its line whatever it means there: `Pagination: the
+# cursor …` fails as well. Every other trailer is allowed.
+[[repos.hooks]]
+id = "deny-pattern"
+name = "commit trailers (no AI agent or model)"
+description = "Drop the line that credits an AI agent or a model; other trailers stay"
+stages = ["commit-msg"]
+args = ["--multiline", '(?i)\n(?!#)(?:[a-z][\w-]*:[ \t]|[^\n]*\bgenerated (?:with|by)\b)[^\n]*?\b(?:claude|anthropic|openai|chatgpt|gpt-?\d|copilot|gemini|codex|cursor|windsurf|aider|devin)\b']
