@@ -153,6 +153,11 @@ whose `tagPrefix` is `v` in `.gitflow`;
 the tag triggers `.github/workflows/release.yml`.
 The sources carry the name, never the `v`:
 `version` in `Cargo.toml`.
+The name is set on `release/<name>`, started by `git flow release start <name>`,
+in its one commit, `chore: release <name>`,
+which changes `version` in `Cargo.toml`, `Cargo.lock`
+and `ver=` in `docs/guide/installation.md`, and nothing else;
+`develop` gets the name only when the finish merges `main` back.
 
 ## Generated files
 
