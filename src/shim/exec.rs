@@ -18,7 +18,6 @@ use crate::render::PathCtx;
 
 use super::{ShimError, config_dir_for, effort_to_inject, ensure_shim_at, find_real_claude};
 
-#[must_use]
 pub fn run() -> ExitCode {
     match try_run() {
         Ok(never) => match never {},

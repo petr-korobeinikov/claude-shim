@@ -46,7 +46,7 @@ fn project_marker_full() {
     let m = parse_project_marker(r#"{"name":"personal","effort":"max"}"#).unwrap();
     assert_eq!(m.name, "personal");
     assert_eq!(m.effort, Some(EffortLevel::Max));
-    assert!(m.warnings.is_empty());
+    assert_eq!(m.warnings, []);
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn project_marker_name_only() {
     let m = parse_project_marker(r#"{"name":"personal"}"#).unwrap();
     assert_eq!(m.name, "personal");
     assert_eq!(m.effort, None);
-    assert!(m.warnings.is_empty());
+    assert_eq!(m.warnings, []);
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn project_marker_non_string_effort_degrades_with_warning() {
 fn project_marker_unknown_keys_tolerated() {
     let m = parse_project_marker(r#"{"name":"personal","future":true}"#).unwrap();
     assert_eq!(m.name, "personal");
-    assert!(m.warnings.is_empty());
+    assert_eq!(m.warnings, []);
 }
 
 #[test]
@@ -141,14 +141,14 @@ fn project_marker_malformed_is_fatal() {
 fn profile_config_valid() {
     let c = parse_profile_config(r#"{"effort":"high"}"#);
     assert_eq!(c.effort, Some(EffortLevel::High));
-    assert!(c.warnings.is_empty());
+    assert_eq!(c.warnings, []);
 }
 
 #[test]
 fn profile_config_empty_object() {
     let c = parse_profile_config("{}");
     assert_eq!(c.effort, None);
-    assert!(c.warnings.is_empty());
+    assert_eq!(c.warnings, []);
 }
 
 #[test]
@@ -199,14 +199,14 @@ fn profile_config_non_object_degrades_to_unusable() {
 fn project_marker_null_effort_is_unset_without_warning() {
     let m = parse_project_marker(r#"{"name":"personal","effort":null}"#).unwrap();
     assert_eq!(m.effort, None);
-    assert!(m.warnings.is_empty());
+    assert_eq!(m.warnings, []);
 }
 
 #[test]
 fn profile_config_null_effort_is_unset_without_warning() {
     let c = parse_profile_config(r#"{"effort":null}"#);
     assert_eq!(c.effort, None);
-    assert!(c.warnings.is_empty());
+    assert_eq!(c.warnings, []);
 }
 
 // --- Display (the caller renders these to stderr) ---
@@ -246,7 +246,7 @@ fn project_body_round_trips_with_effort() {
 fn profile_default_body_round_trips() {
     let c = parse_profile_config(&profile_default_body(EffortLevel::High));
     assert_eq!(c.effort, Some(EffortLevel::High));
-    assert!(c.warnings.is_empty());
+    assert_eq!(c.warnings, []);
 }
 
 #[test]

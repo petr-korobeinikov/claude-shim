@@ -10,7 +10,6 @@ use clap::Parser;
 
 use cli::{Cli, Command, ProfileAction};
 
-#[must_use]
 pub fn run() -> ExitCode {
     match Cli::parse().command {
         Command::Init { target } => {

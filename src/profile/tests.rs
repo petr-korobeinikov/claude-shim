@@ -425,7 +425,7 @@ fn resolve_effort_override_wins_without_reading_profile_default() {
     let pref = project_ref("p", PathBuf::from("/marker"), Some(EffortLevel::High));
     let got = resolve_effort(data.path(), &pref);
     assert_eq!(got.level, Some(EffortLevel::High));
-    assert!(got.warnings.is_empty());
+    assert_eq!(got.warnings, []);
 }
 
 #[test]
@@ -448,7 +448,7 @@ fn resolve_effort_unset_when_no_override_and_no_default() {
     let pref = project_ref("p", PathBuf::from("/marker"), None);
     let got = resolve_effort(data.path(), &pref);
     assert_eq!(got.level, None);
-    assert!(got.warnings.is_empty());
+    assert_eq!(got.warnings, []);
 }
 
 #[test]
@@ -639,7 +639,10 @@ fn effort_at_overwrites_existing_default() {
     );
     make_profile(data.path(), "work");
     let dirs = test_dirs(&data, &config, &home);
-    effort_at(&dirs, None, EffortLevel::Low, Some("work"), false);
+    assert_eq!(
+        effort_at(&dirs, None, EffortLevel::Low, Some("work"), false),
+        ExitCode::SUCCESS
+    );
     assert_eq!(
         effort_at(&dirs, None, EffortLevel::Max, Some("work"), false),
         ExitCode::SUCCESS
@@ -1703,7 +1706,7 @@ fn emit_is_loud_on_missing_project_profile() {
         &mut out,
     );
     assert_eq!(code, ExitCode::from(2));
-    assert!(out.is_empty());
+    assert_eq!(out, b"");
 }
 
 #[test]
@@ -1718,7 +1721,7 @@ fn emit_is_silent_on_missing_default_profile() {
         &mut out,
     );
     assert_eq!(code, ExitCode::SUCCESS);
-    assert!(out.is_empty());
+    assert_eq!(out, b"");
 }
 
 #[test]
@@ -1733,7 +1736,7 @@ fn emit_is_loud_on_invalid_project_name() {
         &mut out,
     );
     assert_eq!(code, ExitCode::from(2));
-    assert!(out.is_empty());
+    assert_eq!(out, b"");
 }
 
 #[test]
@@ -1748,7 +1751,7 @@ fn emit_is_silent_on_invalid_default_name() {
         &mut out,
     );
     assert_eq!(code, ExitCode::SUCCESS);
-    assert!(out.is_empty());
+    assert_eq!(out, b"");
 }
 
 // A genuine serialize error (not a parse error mislabeled): JSON object keys

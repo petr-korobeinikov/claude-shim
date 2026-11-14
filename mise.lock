@@ -3,39 +3,39 @@
 lockfile_version = 4
 
 [[tools."aqua:bats-core/bats-core"]]
-version = "1.13.0"
+version = "1.14.0"
 backend = "aqua:bats-core/bats-core"
-specifiers = ["1.13.0"]
+specifiers = ["1.14.0"]
 
 [tools."aqua:bats-core/bats-core"."platforms.linux-arm64"]
-checksum = "sha256:a85e12b8828271a152b338ca8109aa23493b57950987c8e6dff97ba492772ff3"
-url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.13.0.tar.gz"
-url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.13.0"
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools."aqua:bats-core/bats-core"."platforms.linux-arm64-musl"]
-checksum = "sha256:a85e12b8828271a152b338ca8109aa23493b57950987c8e6dff97ba492772ff3"
-url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.13.0.tar.gz"
-url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.13.0"
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools."aqua:bats-core/bats-core"."platforms.linux-x64"]
-checksum = "sha256:a85e12b8828271a152b338ca8109aa23493b57950987c8e6dff97ba492772ff3"
-url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.13.0.tar.gz"
-url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.13.0"
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools."aqua:bats-core/bats-core"."platforms.linux-x64-musl"]
-checksum = "sha256:a85e12b8828271a152b338ca8109aa23493b57950987c8e6dff97ba492772ff3"
-url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.13.0.tar.gz"
-url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.13.0"
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools."aqua:bats-core/bats-core"."platforms.macos-arm64"]
-checksum = "sha256:a85e12b8828271a152b338ca8109aa23493b57950987c8e6dff97ba492772ff3"
-url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.13.0.tar.gz"
-url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.13.0"
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [tools."aqua:bats-core/bats-core"."platforms.macos-x64"]
-checksum = "sha256:a85e12b8828271a152b338ca8109aa23493b57950987c8e6dff97ba492772ff3"
-url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.13.0.tar.gz"
-url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.13.0"
+checksum = "sha256:bb537b70b15b732f6d8827dd6578e3d8ce166636ce1f18ea9a074184fcce9177"
+url = "https://github.com/bats-core/bats-core/archive/refs/tags/v1.14.0.tar.gz"
+url_api = "https://api.github.com/repos/bats-core/bats-core/tarball/v1.14.0"
 
 [[tools."aqua:gittower/git-flow-next"]]
 version = "2.1.0"
@@ -85,131 +85,145 @@ url = "https://github.com/gittower/git-flow-next/releases/download/v2.1.0/git-fl
 url_api = "https://api.github.com/repos/gittower/git-flow-next/releases/assets/549957111"
 
 [[tools."aqua:j178/prek"]]
-version = "0.5.4"
+version = "0.5.10"
 backend = "aqua:j178/prek"
-specifiers = ["0.5.4"]
+specifiers = ["0.5.10"]
 
 [tools."aqua:j178/prek"."platforms.linux-arm64"]
-checksum = "sha256:5478e436210b5226b8db3dccdd1a2e9094b1c63d81155d96bfa8b83f0398885c"
-url = "https://github.com/j178/prek/releases/download/v0.5.4/prek-aarch64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/594534943"
+checksum = "sha256:6ee3e5696f0b76bb4c95708579a54714aabd9a20e89c998f69a1a5cc41dbbbee"
+url = "https://github.com/j178/prek/releases/download/v0.5.10/prek-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/707839366"
 provenance = "github-attestations"
 
 [tools."aqua:j178/prek"."platforms.linux-arm64-musl"]
-checksum = "sha256:5ba9d0dc3d4add8cc2c569f4fa27b56d6a042a59f6ee008ec9d7790cece5a200"
-url = "https://github.com/j178/prek/releases/download/v0.5.4/prek-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/594534949"
+checksum = "sha256:352b97c18cc1659786232f3fde9e75b5ec96279893563f6b31b36f2d43dca00f"
+url = "https://github.com/j178/prek/releases/download/v0.5.10/prek-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/707839372"
 provenance = "github-attestations"
 
 [tools."aqua:j178/prek"."platforms.linux-x64"]
-checksum = "sha256:6147dfe64051af590f4bfc2c073a0780fb5e2cc37d9eab8e47fe9fe26c7dfb80"
-url = "https://github.com/j178/prek/releases/download/v0.5.4/prek-x86_64-unknown-linux-gnu.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/594534988"
+checksum = "sha256:5c832a9ccd0855b7c054320d8921d90165a37459d3ac175923bdf121ff1aa9b1"
+url = "https://github.com/j178/prek/releases/download/v0.5.10/prek-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/707839458"
 provenance = "github-attestations"
 
 [tools."aqua:j178/prek"."platforms.linux-x64-musl"]
-checksum = "sha256:805632185f4539ca2eb0fd1b3b52ea842cecbc4ba1e749be430df948621353b0"
-url = "https://github.com/j178/prek/releases/download/v0.5.4/prek-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/594535002"
+checksum = "sha256:c70a639cb98c90feafa213c23fb487644af73c906c5a6cee757403090f253c30"
+url = "https://github.com/j178/prek/releases/download/v0.5.10/prek-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/707839467"
 provenance = "github-attestations"
 
 [tools."aqua:j178/prek"."platforms.macos-arm64"]
-checksum = "sha256:88eec06dd10fd61a9b345223fafc9bedb6746ee4cc47377551239d89d752b365"
-url = "https://github.com/j178/prek/releases/download/v0.5.4/prek-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/594534934"
+checksum = "sha256:28186099374a3158e7b27e82fedb0bd20723658dc8ee24a841bdffe8a91b1ad9"
+url = "https://github.com/j178/prek/releases/download/v0.5.10/prek-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/707839320"
 provenance = "github-attestations"
 
 [tools."aqua:j178/prek"."platforms.macos-x64"]
-checksum = "sha256:bc3ddd3a5686fa97120ec2d09db9e7353df4311a85e7b00944342ddd9c4a2035"
-url = "https://github.com/j178/prek/releases/download/v0.5.4/prek-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/594534978"
+checksum = "sha256:bbd0cb4b8d2dea949730ba631e5176e99507e5d799464ea8d71386af98bdcb0a"
+url = "https://github.com/j178/prek/releases/download/v0.5.10/prek-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/707839419"
 provenance = "github-attestations"
 
 [tools."aqua:j178/prek"."platforms.windows-x64"]
-checksum = "sha256:244bc3eeade60a0ee586dfe9f5c90bd1c1d790514009aad2c7055dcb731a3e50"
-url = "https://github.com/j178/prek/releases/download/v0.5.4/prek-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/j178/prek/releases/assets/594534981"
+checksum = "sha256:4a506e19a95a1bbf40f304b245446c32078c7be4d5b7e4cb412ea93a0cf8b4e5"
+url = "https://github.com/j178/prek/releases/download/v0.5.10/prek-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/j178/prek/releases/assets/707839436"
 provenance = "github-attestations"
 
 [[tools."aqua:nektos/act"]]
-version = "0.2.89"
+version = "0.2.97"
 backend = "aqua:nektos/act"
-specifiers = ["0.2.89"]
+specifiers = ["0.2.97"]
 
 [tools."aqua:nektos/act"."platforms.linux-arm64"]
-checksum = "sha256:daa8679ba9615a74d2d0cec321dc593f21948a2a11bb65862b063d8b930f4bcb"
-url = "https://github.com/nektos/act/releases/download/v0.2.89/act_Linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nektos/act/releases/assets/434891274"
+checksum = "sha256:44d48e3d4a6409053fdec6fc6518322467d79a2d5be8f72c021b0421e2ac113d"
+checksum_source = "mise-versions"
+url = "https://github.com/nektos/act/releases/download/v0.2.97/act_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nektos/act/releases/assets/710157495"
 
 [tools."aqua:nektos/act"."platforms.linux-arm64-musl"]
-checksum = "sha256:daa8679ba9615a74d2d0cec321dc593f21948a2a11bb65862b063d8b930f4bcb"
-url = "https://github.com/nektos/act/releases/download/v0.2.89/act_Linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nektos/act/releases/assets/434891274"
+checksum = "sha256:44d48e3d4a6409053fdec6fc6518322467d79a2d5be8f72c021b0421e2ac113d"
+checksum_source = "mise-versions"
+url = "https://github.com/nektos/act/releases/download/v0.2.97/act_Linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nektos/act/releases/assets/710157495"
 
 [tools."aqua:nektos/act"."platforms.linux-x64"]
-checksum = "sha256:0191d6f1f3b716b5c55820032605d05fc3c1cdbf581ebeff655019e5dd1524c0"
-url = "https://github.com/nektos/act/releases/download/v0.2.89/act_Linux_x86_64.tar.gz"
-url_api = "https://api.github.com/repos/nektos/act/releases/assets/434891246"
+checksum = "sha256:67b4976a56f33ea7870b798912e738ec44eef38e7578ae7b532f2def1c73a5ad"
+checksum_source = "mise-versions"
+url = "https://github.com/nektos/act/releases/download/v0.2.97/act_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/nektos/act/releases/assets/710157441"
 
 [tools."aqua:nektos/act"."platforms.linux-x64-musl"]
-checksum = "sha256:0191d6f1f3b716b5c55820032605d05fc3c1cdbf581ebeff655019e5dd1524c0"
-url = "https://github.com/nektos/act/releases/download/v0.2.89/act_Linux_x86_64.tar.gz"
-url_api = "https://api.github.com/repos/nektos/act/releases/assets/434891246"
+checksum = "sha256:67b4976a56f33ea7870b798912e738ec44eef38e7578ae7b532f2def1c73a5ad"
+checksum_source = "mise-versions"
+url = "https://github.com/nektos/act/releases/download/v0.2.97/act_Linux_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/nektos/act/releases/assets/710157441"
 
 [tools."aqua:nektos/act"."platforms.macos-arm64"]
-checksum = "sha256:48ae218af96725f7635a66de2b87e1e346893b02add0f16b92f560296b2151fc"
-url = "https://github.com/nektos/act/releases/download/v0.2.89/act_Darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/nektos/act/releases/assets/434891257"
+checksum = "sha256:6dbb1ef34a7e34bb1ee0db188d1682ea35b82d9d9012626497f6c659e55a7cb5"
+checksum_source = "mise-versions"
+url = "https://github.com/nektos/act/releases/download/v0.2.97/act_Darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/nektos/act/releases/assets/710157431"
 
 [tools."aqua:nektos/act"."platforms.macos-x64"]
-checksum = "sha256:41b31488e7c254baec31cce12c7dade3e35973b8a31b9486206ad43f233d814e"
-url = "https://github.com/nektos/act/releases/download/v0.2.89/act_Darwin_x86_64.tar.gz"
-url_api = "https://api.github.com/repos/nektos/act/releases/assets/434891248"
+checksum = "sha256:cba9cf071f69c47b2fef60a4c735002b6cbd416533920406f72eac0cf7ffec3a"
+checksum_source = "mise-versions"
+url = "https://github.com/nektos/act/releases/download/v0.2.97/act_Darwin_x86_64.tar.gz"
+url_api = "https://api.github.com/repos/nektos/act/releases/assets/710157430"
 
 [tools."aqua:nektos/act"."platforms.windows-x64"]
-checksum = "sha256:0f8cf866ad7e32421a219fc551a0a0ea5d12ead464de12ebfeafd334a5973b50"
-url = "https://github.com/nektos/act/releases/download/v0.2.89/act_Windows_x86_64.zip"
-url_api = "https://api.github.com/repos/nektos/act/releases/assets/434891261"
+checksum = "sha256:07cb9bbecc5604452dc50e2a485e17e02e38c3735c47ce8adc8ac550ab968a8a"
+checksum_source = "mise-versions"
+url = "https://github.com/nektos/act/releases/download/v0.2.97/act_Windows_x86_64.zip"
+url_api = "https://api.github.com/repos/nektos/act/releases/assets/710157515"
 
 [[tools."aqua:orhun/git-cliff"]]
-version = "2.13.1"
+version = "2.14.2"
 backend = "aqua:orhun/git-cliff"
-specifiers = ["2.13.1"]
+specifiers = ["2.14.2"]
 
 [tools."aqua:orhun/git-cliff"."platforms.linux-arm64"]
-checksum = "sha256:4054c124b926c117f3fa048939bc8be0a954f29f3b6f367627e8cb22c1971882"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.13.1/git-cliff-2.13.1-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/405850720"
+checksum = "sha256:69e208f6e4baef3a0f9b759d5f44223aa9336b86c691072a3d0c98d35a816e69"
+checksum_source = "mise-versions"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/573483780"
 
 [tools."aqua:orhun/git-cliff"."platforms.linux-arm64-musl"]
-checksum = "sha256:4054c124b926c117f3fa048939bc8be0a954f29f3b6f367627e8cb22c1971882"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.13.1/git-cliff-2.13.1-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/405850720"
+checksum = "sha256:4be21b21ec9699af4d330b224aeba8a41d41d8f5b351ca2da8a9ea2bdc36380f"
+checksum_source = "mise-versions"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/573485334"
 
 [tools."aqua:orhun/git-cliff"."platforms.linux-x64"]
-checksum = "sha256:200d2535da6d9703f3bcc8a4d159c3b55eacdb01cf2148c55b3eee9dd04d5249"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.13.1/git-cliff-2.13.1-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/405850671"
+checksum = "sha256:24f397c733add5390fdceee3a2088588ab0d5f944ce00d34cb7029b888cf2db4"
+checksum_source = "mise-versions"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/573483509"
 
 [tools."aqua:orhun/git-cliff"."platforms.linux-x64-musl"]
-checksum = "sha256:200d2535da6d9703f3bcc8a4d159c3b55eacdb01cf2148c55b3eee9dd04d5249"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.13.1/git-cliff-2.13.1-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/405850671"
+checksum = "sha256:fa21e2fc70046fcfd0e43e5e4613873ab799aff3d9dc8559c00d31b270e417d0"
+checksum_source = "mise-versions"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/573485273"
 
 [tools."aqua:orhun/git-cliff"."platforms.macos-arm64"]
-checksum = "sha256:21547ae4a0421164070ab75c2522864ea5565858a011fabc5f583061b20f1226"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.13.1/git-cliff-2.13.1-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/405849885"
+checksum = "sha256:a0be97e237d440d34c5e508ec21d070b2c85cbb8be48a46a56f9a4e8bd247f05"
+checksum_source = "mise-versions"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/573487203"
 
 [tools."aqua:orhun/git-cliff"."platforms.macos-x64"]
-checksum = "sha256:6e60ae390d375cecb9d8008c49f0e724a8dfe40390b532ef5501e421d2cc8acb"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.13.1/git-cliff-2.13.1-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/405850193"
+checksum = "sha256:4e647d2deb152aca1e987f225cf42b080b991dd98f3bce4027ef95446d982ac3"
+checksum_source = "mise-versions"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/573484837"
 
 [tools."aqua:orhun/git-cliff"."platforms.windows-x64"]
-checksum = "sha256:3ae3a5549e85c7ad5b20192ebcfee4371269deca51255f6f2f2e051c6541f5ca"
-url = "https://github.com/orhun/git-cliff/releases/download/v2.13.1/git-cliff-2.13.1-x86_64-pc-windows-msvc.zip"
-url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/405851866"
+checksum = "sha256:6ece2112b3f4af462190ecbea4aeb1315fff6af415629b597f84319073c31131"
+checksum_source = "mise-versions"
+url = "https://github.com/orhun/git-cliff/releases/download/v2.14.2/git-cliff-2.14.2-x86_64-pc-windows-msvc.zip"
+url_api = "https://api.github.com/repos/orhun/git-cliff/releases/assets/573487227"
 
 [[tools."aqua:rhysd/actionlint"]]
 version = "1.7.12"
@@ -259,56 +273,56 @@ url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/3849249
 provenance = "github-attestations"
 
 [[tools."aqua:taiki-e/cargo-llvm-cov"]]
-version = "0.8.7"
+version = "0.9.1"
 backend = "aqua:taiki-e/cargo-llvm-cov"
-specifiers = ["0.8.7"]
+specifiers = ["0.9.1"]
 
 [tools."aqua:taiki-e/cargo-llvm-cov"."platforms.linux-arm64"]
-checksum = "sha256:b7bb2ad514166f3b19fc06874c577eefde0010e5ac571f9ae33ff45cd19a4785"
-url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.8.7/cargo-llvm-cov-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/418861713"
+checksum = "sha256:abf5f13c1520f8756d2192bfaaeadb0208f5b7eaa8cadc15bf847befa42b7360"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-aarch64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547403281"
 provenance = "github-attestations"
 
 [tools."aqua:taiki-e/cargo-llvm-cov"."platforms.linux-arm64-musl"]
-checksum = "sha256:b7bb2ad514166f3b19fc06874c577eefde0010e5ac571f9ae33ff45cd19a4785"
-url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.8.7/cargo-llvm-cov-aarch64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/418861713"
+checksum = "sha256:49c0085628392a8d727c4464d91ec417c613c5015f5197cd16d5c05aa3fb5ad1"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-aarch64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547403283"
 provenance = "github-attestations"
 
 [tools."aqua:taiki-e/cargo-llvm-cov"."platforms.linux-x64"]
-checksum = "sha256:967b5cc996c29d8baa52bbb4595ef1f53af35255af8e2036ddbc6468d7b523c7"
-url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.8.7/cargo-llvm-cov-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/418861752"
+checksum = "sha256:b3f68e625481fed9b16444174f3fa5ebcdbde4a1878803a35eabe2dcefcdc41a"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-x86_64-unknown-linux-gnu.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547403171"
 provenance = "github-attestations"
 
 [tools."aqua:taiki-e/cargo-llvm-cov"."platforms.linux-x64-musl"]
-checksum = "sha256:967b5cc996c29d8baa52bbb4595ef1f53af35255af8e2036ddbc6468d7b523c7"
-url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.8.7/cargo-llvm-cov-x86_64-unknown-linux-musl.tar.gz"
-url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/418861752"
+checksum = "sha256:3fca950394a3c49457657c158b1619cec8dfd2647ae5b48746734c0ab969a522"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-x86_64-unknown-linux-musl.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547403186"
 provenance = "github-attestations"
 
 [tools."aqua:taiki-e/cargo-llvm-cov"."platforms.macos-arm64"]
-checksum = "sha256:3efee732ed7e9a653e20d96c930e0ec799901289cce90f46bb20f627e2c0d2e9"
-url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.8.7/cargo-llvm-cov-aarch64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/418861557"
+checksum = "sha256:7e821a6c90c0884f79f759f5d9be50799ade67bb82515186d922f26032ef43b8"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-aarch64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547403359"
 provenance = "github-attestations"
 
 [tools."aqua:taiki-e/cargo-llvm-cov"."platforms.macos-x64"]
-checksum = "sha256:288ce0cb976207a9a1ad5af4d7ec9a06c9af116727066fb2287df8d9d1026be9"
-url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.8.7/cargo-llvm-cov-x86_64-apple-darwin.tar.gz"
-url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/418861642"
+checksum = "sha256:ddf949b82a63017441ea76aa068bdd7e2dde8055f47cd3ef736fdbbd633bc33e"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-x86_64-apple-darwin.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547403156"
 provenance = "github-attestations"
 
 [tools."aqua:taiki-e/cargo-llvm-cov"."platforms.windows-x64"]
-checksum = "sha256:56bce7aef6bf906af0fe025d2459f8be483d65ed4c105760671f9c92449c966d"
-url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.8.7/cargo-llvm-cov-x86_64-pc-windows-msvc.tar.gz"
-url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/418863335"
+checksum = "sha256:15eefd5b90fcdd4006b727c6e710d70a61aff509fcd7bb37f9c2a35c4f024948"
+url = "https://github.com/taiki-e/cargo-llvm-cov/releases/download/v0.9.1/cargo-llvm-cov-x86_64-pc-windows-msvc.tar.gz"
+url_api = "https://api.github.com/repos/taiki-e/cargo-llvm-cov/releases/assets/547404213"
 provenance = "github-attestations"
 
 [[tools."cargo:cargo-audit"]]
-version = "0.22.2"
+version = "0.23.0"
 backend = "cargo:cargo-audit"
-specifiers = ["0.22.2"]
+specifiers = ["0.23.0"]
 
 [tools."cargo:cargo-audit".options]
 locked = "true"
@@ -356,9 +370,9 @@ specifiers = ["2.0.0"]
 repository = "github.com/Fission-AI/OpenSpec"
 
 [[tools.rust]]
-version = "1.97.1"
+version = "1.100.0"
 backend = "core:rust"
-specifiers = ["1.97.1"]
+specifiers = ["1.100.0"]
 
 [tools.rust.options]
 components = "clippy,llvm-tools,rustfmt"
