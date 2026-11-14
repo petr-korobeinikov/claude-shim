@@ -97,7 +97,7 @@ jobs:
       - uses: jdx/mise-action@v4
         with:
           install: false
-      - run: mise install git-cliff
+      - run: mise install aqua:orhun/git-cliff   # the pin in mise.toml; the bare name would fetch the registry's latest
       - uses: actions/download-artifact@v8
         with:
           path: dist
