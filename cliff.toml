@@ -44,6 +44,8 @@ commit_parsers = [
   { message = "^(build|ci)", group = "<!-- 6 -->🏗️ Build & CI" },
   # Plans and replans change no shipped behavior; the implementation's own commit does.
   { message = "^chore\\(openspec\\)", skip = true },
+  # The release commit only bumps the version the notes are already titled with.
+  { message = '^chore: release [0-9]+\.[0-9]+', skip = true },
   { message = "^chore", group = "<!-- 7 -->⚙️ Miscellaneous Tasks" },
   { message = "^style", group = "<!-- 8 -->🎨 Styling" },
   { message = "^revert", group = "<!-- 9 -->◀️ Reverts" },
