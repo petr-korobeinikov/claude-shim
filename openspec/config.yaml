@@ -58,7 +58,7 @@ context: |
   marker, argument parsing - decides; the glue - `main.rs`, `lib.rs`,
   `profile/dispatch.rs`, `shim/exec.rs` - only wires the core to the
   process: arguments, environment, `exec`. Glue stays thin enough to need
-  no unit test, which is why the coverage task in `mise.toml` excludes it;
+  no unit test, which is why `.mise/tasks/coverage` excludes it;
   logic that grows there moves into the core. New core code takes what it
   reads from the environment or the file system as parameters, so it is
   tested on the host against a `tempfile` directory.

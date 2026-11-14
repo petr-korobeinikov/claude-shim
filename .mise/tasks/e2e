@@ -1,0 +1,3 @@
+#!/bin/sh
+#MISE description="End-to-end tests: exercise the real binary and the zsh integration with bats"
+exec bats e2e/

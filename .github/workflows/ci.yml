@@ -41,7 +41,7 @@ jobs:
         with:
           install_args: "rust aqua:taiki-e/cargo-llvm-cov"
       - uses: Swatinem/rust-cache@v2
-      - run: mise run coverage   # writes codecov.json; glue files excluded (see mise.toml regex)
+      - run: mise run coverage   # writes codecov.json; glue files excluded (see .mise/tasks/coverage)
       - name: Upload to Codecov
         uses: codecov/codecov-action@v7
         with:
