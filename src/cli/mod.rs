@@ -19,6 +19,11 @@ pub(crate) enum Command {
         #[command(subcommand)]
         action: ProfileAction,
     },
+    /// Print a statusLine from Claude Code's JSON on stdin
+    Statusline {
+        #[arg(value_enum)]
+        preset: crate::statusline::LinePreset,
+    },
 }
 
 #[derive(Subcommand)]

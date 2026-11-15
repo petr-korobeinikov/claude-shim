@@ -409,3 +409,22 @@ fn parses_profile_delete_with_yes() {
 fn rejects_profile_delete_without_name() {
     assert!(Cli::try_parse_from(["claude-shim", "profile", "delete"]).is_err());
 }
+
+#[test]
+fn parses_statusline_colored() {
+    let cli = Cli::try_parse_from(["claude-shim", "statusline", "colored"]).unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Statusline {
+            preset: crate::statusline::LinePreset::Colored
+        }
+    ));
+}
+
+#[test]
+fn rejects_statusline_fancy_as_an_invalid_value() {
+    let error = Cli::try_parse_from(["claude-shim", "statusline", "fancy"])
+        .err()
+        .unwrap();
+    assert_eq!(error.kind(), clap::error::ErrorKind::InvalidValue);
+}

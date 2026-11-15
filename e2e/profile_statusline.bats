@@ -17,6 +17,16 @@ teardown() { _common_teardown; }
     grep -q 'Current profile' "$dir/settings.json"
 }
 
+@test "statusline --preset colored installs the shim's colored line" {
+    run "$CLAUDE_SHIM_BIN" profile new p
+    local dir
+    dir="$(path_after_at "${lines[0]}")"
+
+    run "$CLAUDE_SHIM_BIN" profile statusline --profile p --preset colored
+    [ "$status" -eq 0 ]
+    grep -q '"command": "claude-shim statusline colored"' "$dir/settings.json"
+}
+
 @test "statusline installs a custom command" {
     run "$CLAUDE_SHIM_BIN" profile new p
     local dir

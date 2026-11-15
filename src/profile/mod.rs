@@ -76,6 +76,12 @@ enum StatusLine {
 pub(crate) enum StatusLinePreset {
     /// Render `Current profile: <name>`, resolving the active profile.
     ProfileIndicator,
+    /// Run `claude-shim statusline compact`.
+    Compact,
+    /// Run `claude-shim statusline labeled`.
+    Labeled,
+    /// Run `claude-shim statusline colored`.
+    Colored,
 }
 
 pub(crate) enum StatuslineError {
@@ -93,10 +99,17 @@ pub(crate) enum StatuslineError {
 // the surrounding settings.json is built with serde_json, never hand-written.
 const PROFILE_INDICATOR_COMMAND: &str = "p=$(claude-shim profile current 2>/dev/null); [ -n \"$p\" ] || p=\"${CLAUDE_CONFIG_DIR##*/}\"; echo \"Current profile: $p\"";
 
+const COMPACT_COMMAND: &str = "claude-shim statusline compact";
+const LABELED_COMMAND: &str = "claude-shim statusline labeled";
+const COLORED_COMMAND: &str = "claude-shim statusline colored";
+
 impl StatusLinePreset {
     fn command(self) -> &'static str {
         match self {
             StatusLinePreset::ProfileIndicator => PROFILE_INDICATOR_COMMAND,
+            StatusLinePreset::Compact => COMPACT_COMMAND,
+            StatusLinePreset::Labeled => LABELED_COMMAND,
+            StatusLinePreset::Colored => COLORED_COMMAND,
         }
     }
 }
@@ -860,7 +873,7 @@ pub(crate) fn resolve_effort(data_dir: &Path, profile: &ProfileRef) -> EffortRes
 /// The profile active in `cwd` — the one `profile statusline` targets without
 /// `--profile`. Same resolution as the shim, mapped to its name; `None` when no
 /// profile is in scope.
-fn active_profile(cwd: &Path, home: &Path, config_dir: &Path) -> Option<String> {
+pub(crate) fn active_profile(cwd: &Path, home: &Path, config_dir: &Path) -> Option<String> {
     match resolve(cwd, home, config_dir) {
         Resolution::Profile(p) => Some(p.name),
         Resolution::Legacy | Resolution::None | Resolution::Malformed(_) => None,
@@ -979,7 +992,7 @@ fn emit(
     }
 }
 
-fn is_valid_profile_name(name: &str) -> bool {
+pub(crate) fn is_valid_profile_name(name: &str) -> bool {
     !name.is_empty()
         && name != "."
         && name != ".."

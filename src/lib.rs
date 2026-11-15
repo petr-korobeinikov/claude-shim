@@ -3,6 +3,7 @@ mod init;
 mod profile;
 mod render;
 pub mod shim;
+mod statusline;
 
 use std::process::ExitCode;
 
@@ -60,5 +61,6 @@ pub fn run() -> ExitCode {
         Command::Profile {
             action: ProfileAction::List,
         } => profile::list(),
+        Command::Statusline { preset } => statusline::print_line(preset),
     }
 }

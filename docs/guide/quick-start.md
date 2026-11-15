@@ -61,7 +61,7 @@ Claude Code initializes its contents on first launch.
 
 - **Show the active profile in your shell prompt** —
   [Prompt indicator](/guide/prompt-indicator) has the plain `PS1` plus oh-my-posh variants.
-- **Show it in Claude Code's status bar (statusLine)** —
+- **Show it, with the model and effort, in Claude Code's status bar (statusLine)** —
   [statusLine indicator](/guide/statusline).
 - **Manage profiles** —
   [Profiles](/guide/profiles) covers `current` / `list` and the workspace marker.

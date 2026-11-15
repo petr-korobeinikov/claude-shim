@@ -1039,6 +1039,22 @@ fn profile_indicator_command_is_the_preset_snippet() {
     assert!(PROFILE_INDICATOR_COMMAND.contains("Current profile:"));
 }
 
+#[test]
+fn line_presets_write_the_statusline_command() {
+    for (preset, command) in [
+        (StatusLinePreset::Compact, "claude-shim statusline compact"),
+        (StatusLinePreset::Labeled, "claude-shim statusline labeled"),
+        (StatusLinePreset::Colored, "claude-shim statusline colored"),
+    ] {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("settings.json");
+        set_statusline(&path, &StatusLine::Preset(preset), false)
+            .unwrap_or_else(|_| panic!("expected Ok"));
+        let value: Value = serde_json::from_str(&fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(value["statusLine"]["command"], command);
+    }
+}
+
 fn make_profile(data: &Path, name: &str) -> PathBuf {
     let dir = profile_dir(data, name);
     fs::create_dir_all(&dir).unwrap();
