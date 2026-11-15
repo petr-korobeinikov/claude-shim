@@ -20,4 +20,4 @@ When no project marker is found, the shim resolves the profile in this order:
 3. Otherwise the shim refuses to run rather than silently fall back to an arbitrary profile.
 
 Migrating an existing `~/.claude` setup to a named profile
-is covered in [Migration](/guide/migration).
+is covered in [Migration](migration.md).

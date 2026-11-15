@@ -1,0 +1,21 @@
+/* The project icon's #d97757 on #1a1a1a. Links in the light scheme take a
+   darker shade: #d97757 on white is 3.1:1, under WCAG AA's 4.5:1. */
+[data-md-color-primary=custom] {
+  --md-primary-fg-color: #d97757;
+  --md-primary-fg-color--light: #e8957a;
+  --md-primary-fg-color--dark: #b5593a;
+  --md-primary-bg-color: #1a1a1a;
+  --md-primary-bg-color--light: #1a1a1ab3;
+  --md-typeset-a-color: #b5593a;
+}
+
+[data-md-color-accent=custom] {
+  --md-accent-fg-color: #d97757;
+  --md-accent-fg-color--transparent: #d977571a;
+  --md-accent-bg-color: #1a1a1a;
+  --md-accent-bg-color--light: #1a1a1ab3;
+}
+
+[data-md-color-scheme=slate][data-md-color-primary=custom] {
+  --md-typeset-a-color: #d97757;
+}

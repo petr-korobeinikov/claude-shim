@@ -1,0 +1,3 @@
+#!/bin/sh
+#MISE description="Build the documentation site into .site/"
+exec zensical build --strict --clean

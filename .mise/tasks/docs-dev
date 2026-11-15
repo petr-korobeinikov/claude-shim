@@ -1,0 +1,4 @@
+#!/bin/sh
+#MISE description="Serve the documentation site on this machine, reloading on each edit"
+# The default `localhost` may also take `::1`.
+exec zensical serve -a 127.0.0.1:8000

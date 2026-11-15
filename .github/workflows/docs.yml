@@ -1,47 +1,49 @@
 name: docs
 
 on:
+  # release.yml calls it after the Release, so the site shows the latest one.
   workflow_call:
   workflow_dispatch:
 
-# Pages deploy: read the repo, mint the OIDC token deploy-pages needs, and
-# write to Pages. contents:read is required because setting permissions at all
-# drops every unlisted scope to none (checkout would lose read otherwise).
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# One Pages deploy at a time; the default (no cancel-in-progress) lets an
-# in-flight production deploy finish rather than being killed by a newer run.
+env:
+  # mise exec and mise run would install every tool a job leaves out, without the token.
+  MISE_AUTO_INSTALL: "false"
+
+# One Pages deploy at a time; an in-flight deploy finishes rather than being killed by a newer run.
 concurrency:
   group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: jdx/mise-action@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          install: false   # only node is needed, not git-flow-next/actionlint/etc.
-      - run: mise install node
-      # node is a core mise tool, so bare node/npm resolve via mise-action's shims
-      # (like ci.yml's bare cargo). NOT `mise exec -- npm`: with no tool arg it
-      # reinstalls the whole mise.toml toolchain (rust + aqua) on every run.
-      - run: npm ci
-      - run: npm run docs:build
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
+          persist-credentials: false
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
         with:
-          path: docs/.vitepress/dist
+          version: 2026.11.2
+          # mise does not check a restored tool cache against mise.lock.
+          cache: false
+          install_args: uv pypi:zensical
+      - run: mise run docs-build
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: .site
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

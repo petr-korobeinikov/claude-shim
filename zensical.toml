@@ -1,0 +1,87 @@
+[project]
+site_name = "claude-shim"
+site_description = "Claude Code profile manager. Combat-proven. Automagic."
+site_url = "https://petr-korobeinikov.github.io/claude-shim/"
+site_dir = ".site"
+# guide/installation.html, as VitePress wrote it, so links already out keep resolving.
+use_directory_urls = false
+repo_url = "https://github.com/petr-korobeinikov/claude-shim"
+copyright = """
+Released under the <a href="https://github.com/petr-korobeinikov/claude-shim/blob/develop/LICENSE">MIT License</a>.
+Copyright (C) 2026 Petr Korobeinikov.
+"""
+extra_css = ["stylesheets/extra.css"]
+
+nav = [
+  { "Home" = "index.md" },
+  { "Guide" = [
+    { "Quick start" = "guide/quick-start.md" },
+    { "Installation" = "guide/installation.md" },
+    { "Profiles" = "guide/profiles.md" },
+    { "Effort level" = "guide/effort.md" },
+    { "statusLine indicator" = "guide/statusline.md" },
+    { "Prompt indicator" = "guide/prompt-indicator.md" },
+    { "Profile resolution" = "guide/resolution.md" },
+    { "Migration" = "guide/migration.md" },
+  ] },
+  { "Contributing" = "contributing.md" },
+]
+
+[project.theme]
+variant = "modern"
+custom_dir = "docs/templates"
+language = "en"
+logo = "assets/logo.svg"
+favicon = "assets/logo.svg"
+# Off, so a page calls no Google Fonts.
+font = false
+features = [
+  "content.code.copy",
+  "content.tabs.link",
+  "navigation.instant",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "custom"
+accent = "custom"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"
+
+[project.plugins.llmstxt]
+markdown_description = "Claude Code profile manager. Combat-proven. Automagic."
+full_output = "llms-full.txt"
+
+[project.plugins.llmstxt.sections]
+Start = ["index.md", "guide/quick-start.md"]
+Guide = [
+  "guide/installation.md",
+  "guide/profiles.md",
+  "guide/effort.md",
+  "guide/statusline.md",
+  "guide/prompt-indicator.md",
+  "guide/resolution.md",
+  "guide/migration.md",
+]
+Contributing = ["contributing.md"]
+
+[project.markdown_extensions]
+admonition = {}
+attr_list = {}
+tables = {}
+toc.permalink = true
+pymdownx.details = {}
+pymdownx.highlight = {}
+# Without the Mermaid fence, which the theme renders from a CDN.
+pymdownx.superfences = {}
+pymdownx.tabbed.alternate_style = true

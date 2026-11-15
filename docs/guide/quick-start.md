@@ -1,21 +1,20 @@
-# Quick Start
+# Quick start
 
 Set up per-project profile switching in three steps.
 Each step links to the page with the full details.
 
 ## 1. Install
 
-::: tip Preferred — install with mise
-[mise](https://mise.jdx.dev/) picks the right prebuilt binary for your platform
-and verifies its GitHub artifact attestations:
+!!! tip "Preferred — install with mise"
+    [mise](https://mise.jdx.dev/) picks the right prebuilt binary for your platform
+    and verifies its GitHub artifact attestations:
 
-```sh
-mise use -g github:petr-korobeinikov/claude-shim@latest
-```
-:::
+    ```sh
+    mise use -g github:petr-korobeinikov/claude-shim@latest
+    ```
 
 Or install from crates.io —
-all install routes are in [Installation](/guide/installation):
+all install routes are in [Installation](installation.md):
 
 ```sh
 cargo install claude-shim
@@ -30,17 +29,17 @@ It also exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt
 as a secondary effect the optional prompt indicator consumes.
 Add to your shell's startup file and re-source:
 
-::: code-group
+=== "zsh (~/.zshrc)"
 
-```sh [zsh (~/.zshrc)]
-eval "$(claude-shim init zsh)"
-```
+    ```sh
+    eval "$(claude-shim init zsh)"
+    ```
 
-```sh [bash (~/.bashrc)]
-eval "$(claude-shim init bash)"
-```
+=== "bash (~/.bashrc)"
 
-:::
+    ```sh
+    eval "$(claude-shim init bash)"
+    ```
 
 ## 3. Create a profile and point a project at it
 
@@ -60,10 +59,10 @@ Claude Code initializes its contents on first launch.
 ## Next steps
 
 - **Show the active profile in your shell prompt** —
-  [Prompt indicator](/guide/prompt-indicator) has the plain `PS1` plus oh-my-posh variants.
+  [Prompt indicator](prompt-indicator.md) has the plain `PS1` plus oh-my-posh variants.
 - **Show it, with the model and effort, in Claude Code's status bar (statusLine)** —
-  [statusLine indicator](/guide/statusline).
+  [statusLine indicator](statusline.md).
 - **Manage profiles** —
-  [Profiles](/guide/profiles) covers `current` / `list` and the workspace marker.
+  [Profiles](profiles.md) covers `current` / `list` and the workspace marker.
 - **Understand profile resolution** —
-  [Profile resolution](/guide/resolution) explains how the active profile is chosen.
+  [Profile resolution](resolution.md) explains how the active profile is chosen.

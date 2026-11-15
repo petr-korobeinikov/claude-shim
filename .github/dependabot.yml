@@ -10,20 +10,6 @@ updates:
     commit-message:
       prefix: chore
 
-  - package-ecosystem: npm
-    directory: "/"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 3
-    labels:
-      - chore
-    commit-message:
-      prefix: chore
-      prefix-development: chore
-    groups:
-      dev-dependencies:
-        dependency-type: development
-
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

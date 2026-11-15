@@ -81,18 +81,18 @@ Otherwise substitute its full path.
 ## Shell integration
 
 Installs a prompt hook that exports `CLAUDE_SHIM_ACTIVE_PROFILE` on every prompt.
-Required for both prompt-rendering paths in [Prompt indicator](/guide/prompt-indicator).
+Required for both prompt-rendering paths in [Prompt indicator](prompt-indicator.md).
 
 Add to your shell's startup file and re-source:
 
-::: code-group
+=== "zsh (~/.zshrc)"
 
-```sh [zsh (~/.zshrc)]
-eval "$(claude-shim init zsh)"
-```
+    ```sh
+    eval "$(claude-shim init zsh)"
+    ```
 
-```sh [bash (~/.bashrc)]
-eval "$(claude-shim init bash)"
-```
+=== "bash (~/.bashrc)"
 
-:::
+    ```sh
+    eval "$(claude-shim init bash)"
+    ```

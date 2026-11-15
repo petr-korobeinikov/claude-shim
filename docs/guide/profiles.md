@@ -17,17 +17,16 @@ Claude Code initializes the profile contents (settings, credentials, history) on
 `profile new` fails loud rather than overwrite an existing profile —
 remove the old profile directory before retrying.
 
-::: tip
-`profile new` seeds a `CLAUDE.md` into the profile directory.
-Because the shim points `CLAUDE_CONFIG_DIR` there,
-Claude Code loads it as user memory and learns its config lives in the profile dir —
-not in `~/.claude` (which is overridden). A project's own `.claude/` is unaffected.
-:::
+!!! tip
+    `profile new` seeds a `CLAUDE.md` into the profile directory.
+    Because the shim points `CLAUDE_CONFIG_DIR` there,
+    Claude Code loads it as user memory and learns its config lives in the profile dir —
+    not in `~/.claude` (which is overridden). A project's own `.claude/` is unaffected.
 
-See [statusLine indicator](/guide/statusline) to show the active profile
+See [statusLine indicator](statusline.md) to show the active profile
 in Claude Code's status bar (enable at creation with `--statusline`).
 
-See [Effort level](/guide/effort) to pin a Claude Code effort level
+See [Effort level](effort.md) to pin a Claude Code effort level
 per profile or per project.
 
 ## Binding a directory
@@ -86,17 +85,16 @@ $ claude-shim profile delete work --yes
 deleted profile 'work' at …/claude-shim/profiles/work
 ```
 
-::: warning macOS: the Keychain entry is left behind
-Deleting a profile removes its directory,
-but not its macOS Keychain login entry —
-that entry is keyed by a hash of the profile's `CLAUDE_CONFIG_DIR` path,
-which `claude-shim` never manages.
-Once the directory is gone the orphaned entry is unreachable and harmless —
-the same Keychain limitation noted for [migration](/guide/migration).
-:::
+!!! warning "macOS: the Keychain entry is left behind"
+    Deleting a profile removes its directory,
+    but not its macOS Keychain login entry —
+    that entry is keyed by a hash of the profile's `CLAUDE_CONFIG_DIR` path,
+    which `claude-shim` never manages.
+    Once the directory is gone the orphaned entry is unreachable and harmless —
+    the same Keychain limitation noted for [migration](migration.md).
 
 ## Profile resolution
 
 Which marker a directory resolves to —
 and how the global default is chosen when there is none —
-is covered in [Profile resolution](/guide/resolution).
+is covered in [Profile resolution](resolution.md).

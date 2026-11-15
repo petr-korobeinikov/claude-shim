@@ -1,25 +1,22 @@
----
-layout: home
+# claude-shim
 
-hero:
-  name: claude-shim
-  text: Claude Code profile manager
-  tagline: Combat-proven. Automagic.
-  actions:
-    - theme: brand
-      text: Get started
-      link: /guide/quick-start
-    - theme: alt
-      text: GitHub
-      link: https://github.com/petr-korobeinikov/claude-shim
+![claude-shim](public/banner.svg)
 
-features:
-  - title: Per-project profiles
-    details: Swaps CLAUDE_CONFIG_DIR automatically based on the project directory.
-  - title: Effort level
-    details: Pins an effort level per profile or project — even max, which settings.json drops.
-  - title: Prompt indicator
-    details: Shows the active profile right in your shell prompt.
-  - title: statusLine indicator
-    details: Shows the active profile in Claude Code's in-session status bar.
----
+**Claude Code profile manager.**
+Combat-proven. Automagic.
+
+[Get started](guide/quick-start.md) ·
+[GitHub](https://github.com/petr-korobeinikov/claude-shim)
+
+- **Per-project profiles** —
+  swaps `CLAUDE_CONFIG_DIR` automatically based on the project directory.
+  See [Profiles](guide/profiles.md).
+- **Effort level** —
+  pins an effort level per profile or project — even `max`, which `settings.json` drops.
+  See [Effort level](guide/effort.md).
+- **Prompt indicator** —
+  shows the active profile right in your shell prompt.
+  See [Prompt indicator](guide/prompt-indicator.md).
+- **statusLine indicator** —
+  shows the active profile in Claude Code's in-session status bar.
+  See [statusLine indicator](guide/statusline.md).

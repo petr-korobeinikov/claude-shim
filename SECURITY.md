@@ -28,12 +28,16 @@ so fixes are best-effort.
 The shipped artifact is a single Rust binary.
 Its dependencies are audited in CI with [`cargo audit`][cargo-audit].
 
-The documentation site (VitePress) is built from this repository
-but ships in neither the released binary nor the published site's runtime.
-Its dev-only documentation toolchain dependencies
-may carry advisories that do not reach users of the binary:
-they run only at docs-build time, over trusted in-repo Markdown.
-Dependabot tracks them
-and opens update PRs as upstream fixes land.
+The documentation site is built with [Zensical][zensical] from this repository
+and ships in neither the released binary nor the published site's runtime.
+Zensical installs from a dependency graph committed in `.mise/locks/`,
+every wheel pinned by its hash,
+wheels only, so no package code runs at install time,
+into a venv of its own on a private Python.
+It runs only at docs-build time, over trusted in-repo Markdown.
+Dependabot does not track that graph:
+a bump is audited and lands as a change of its own.
+
+[zensical]: https://zensical.org
 
 [cargo-audit]: https://github.com/rustsec/rustsec

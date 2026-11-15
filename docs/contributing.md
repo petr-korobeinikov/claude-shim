@@ -1,9 +1,8 @@
 # Contributing
 
-::: info
-This page currently covers local development setup;
-community contribution guidelines will be added in a later update.
-:::
+!!! info
+    This page currently covers local development setup;
+    community contribution guidelines will be added in a later update.
 
 ## Git flow setup
 

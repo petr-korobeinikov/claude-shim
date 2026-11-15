@@ -5,7 +5,7 @@ Claude Code can show the profile a session runs under in its in-session status b
 so every session under that profile renders the line its preset gives.
 
 This is Claude Code's own status bar inside the session —
-distinct from the shell [prompt indicator](/guide/prompt-indicator),
+distinct from the shell [prompt indicator](prompt-indicator.md),
 which marks your terminal prompt.
 
 ## Presets
@@ -56,7 +56,7 @@ claude-shim profile new work --statusline
 
 `profile statusline` configures a profile that already exists.
 Without `--profile` it targets the profile active in the current directory —
-the same [resolution](/guide/resolution) the shim uses,
+the same [resolution](resolution.md) the shim uses,
 so it fails if no profile is active there.
 
 ```sh

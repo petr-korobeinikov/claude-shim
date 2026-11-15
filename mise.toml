@@ -2,9 +2,13 @@
 disable_backends = ["ubi", "asdf"]
 lockfile = true
 
+[tool_config]
+locked = true
+
 [tools]
 rust = { version = "1.100.0", components = "rustfmt,clippy,llvm-tools" }
 node = "26.13.1"
+uv = "0.13.7"
 "aqua:bats-core/bats-core" = "1.14.0"
 "aqua:gittower/git-flow-next" = "2.1.0"
 "aqua:j178/prek" = "0.5.10"
@@ -14,6 +18,13 @@ node = "26.13.1"
 "aqua:taiki-e/cargo-llvm-cov" = "0.9.1"
 "cargo:cargo-audit" = { version = "0.23.0", locked = true }
 "npm:@fission-ai/openspec" = "2.0.0"
+# Builds docs/. Not 3.15: PyYAML 6.0.3 has no cp315 wheel.
+"pypi:zensical" = { version = "0.1.1", python = "3.14.10" }
 
 [env]
 OPENSPEC_TELEMETRY = "0"
+PYTHONPATH = false
+PYTHONHOME = false
+PIP_REQUIRE_VIRTUALENV = "true"
+UV_PYTHON_DOWNLOADS = "never"
+PYTHONPYCACHEPREFIX = "{{config_root}}/.pycache"

@@ -39,8 +39,7 @@ The effort for a session is chosen highest-first:
 3. The resolved profile's default (`profiles/<name>/claude-shim.json`).
 4. Otherwise left unset, and Claude Code uses its own default.
 
-::: tip
-`profile effort <level>` without `--local` sets the profile default.
-If the current directory has a project or workspace override,
-that override wins — use `--local` to change the effort in effect here.
-:::
+!!! tip
+    `profile effort <level>` without `--local` sets the profile default.
+    If the current directory has a project or workspace override,
+    that override wins — use `--local` to change the effort in effect here.
