@@ -3,7 +3,11 @@
 ![claude-shim](public/banner.svg)
 
 **Claude Code profile manager.**
-Combat-proven. Automagic.
+Combat-proven. Automagic. <sup>✱</sup>
+
+<small>✱ Including JetBrains Air in terminal mode:
+Air runs the Claude Code installed on your machine, which is the shim,
+so the profile follows the project as in any terminal. Nothing to set up.</small>
 
 [Get started](guide/quick-start.md) ·
 [GitHub](https://github.com/petr-korobeinikov/claude-shim)

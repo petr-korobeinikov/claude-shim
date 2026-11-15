@@ -11,6 +11,8 @@
 It swaps `CLAUDE_CONFIG_DIR` based on the directory you're in,
 and shows the active profile right in your shell prompt.
 
+<sub>✱ Also works in JetBrains Air's terminal mode. Nothing to set up: it just works.</sub>
+
 [Installation](#installation) ·
 [Usage](#usage) ·
 [Documentation](https://petr-korobeinikov.github.io/claude-shim/)
