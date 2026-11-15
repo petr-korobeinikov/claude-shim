@@ -1,11 +1,13 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
 use crate::profile::{is_valid_profile_name, profile_dir};
 
 mod dispatch;
+mod usage;
 pub(crate) use dispatch::print_line;
+use usage::{countdown_text, session_tokens, token_text};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum LinePreset {
@@ -15,26 +17,41 @@ pub(crate) enum LinePreset {
     Labeled,
     /// The labeled line, colored by cost; plain under `NO_COLOR`
     Colored,
+    /// `Profile: work · Model: Opus 5.5 · Effort: high · Tokens: ~66.9k · Week: 41%`, colored
+    Full,
+    /// The full line and `Week resets: in 2d 5h`
+    FullWeek,
 }
 
-impl LinePreset {
-    pub(crate) fn effective(self, no_color: bool) -> Self {
-        match self {
-            LinePreset::Colored if no_color => LinePreset::Labeled,
-            preset => preset,
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Palette {
+    Plain,
+    Sgr,
+}
+
+impl Palette {
+    fn paint(self, text: &str, sgr: Option<&str>) -> String {
+        match (self, sgr) {
+            (Palette::Sgr, Some(sgr)) => format!("\x1b[{sgr}m{text}\x1b[0m"),
+            _ => text.to_string(),
         }
     }
 }
 
+#[derive(Default)]
 pub(crate) struct SessionFacts {
     pub(crate) profile: Option<String>,
     pub(crate) model_id: Option<String>,
     pub(crate) model_name: Option<String>,
     pub(crate) effort: Option<String>,
+    pub(crate) transcript_path: Option<PathBuf>,
+    pub(crate) session_percent: Option<u64>,
+    pub(crate) week_percent: Option<u64>,
+    pub(crate) week_resets_in: Option<u64>,
 }
 
 impl SessionFacts {
-    pub(crate) fn from_stdin(text: &str, profile: Option<String>) -> Self {
+    pub(crate) fn from_stdin(text: &str, profile: Option<String>, now: u64) -> Self {
         let input = serde_json::from_str(text).unwrap_or(Value::Null);
         let field = |pointer: &str| {
             input
@@ -42,13 +59,29 @@ impl SessionFacts {
                 .and_then(Value::as_str)
                 .map(str::to_string)
         };
+        let number = |pointer: &str| input.pointer(pointer).and_then(Value::as_f64);
+        let percent = |pointer: &str| number(pointer).map(f64::round).map(whole_number);
         Self {
             profile,
             model_id: field("/model/id"),
             model_name: field("/model/display_name"),
             effort: field("/effort/level"),
+            transcript_path: field("/transcript_path").map(PathBuf::from),
+            session_percent: percent("/rate_limits/five_hour/used_percentage"),
+            week_percent: percent("/rate_limits/seven_day/used_percentage"),
+            week_resets_in: number("/rate_limits/seven_day/resets_at")
+                .map(f64::floor)
+                .map(whole_number)
+                .and_then(|resets_at| resets_at.checked_sub(now))
+                .filter(|seconds_left| *seconds_left > 0),
         }
     }
+}
+
+// `as` saturates rather than wraps: a negative value reads 0.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+fn whole_number(value: f64) -> u64 {
+    value as u64
 }
 
 pub(crate) fn session_profile(config_dir_env: Option<&Path>, data_dir: &Path) -> Option<String> {
@@ -120,18 +153,13 @@ fn effort_sgr(level: &str) -> &'static str {
     }
 }
 
-pub(crate) fn render(preset: LinePreset, facts: &SessionFacts) -> String {
+pub(crate) fn render(preset: LinePreset, facts: &SessionFacts, palette: Palette) -> String {
     match preset {
         LinePreset::Compact => compact(facts),
-        LinePreset::Labeled => labeled(facts, |text, _| text.to_string()),
-        LinePreset::Colored => labeled(facts, paint),
-    }
-}
-
-fn paint(text: &str, sgr: Option<&str>) -> String {
-    match sgr {
-        Some(sgr) => format!("\x1b[{sgr}m{text}\x1b[0m"),
-        None => text.to_string(),
+        LinePreset::Labeled => labeled(facts, Palette::Plain),
+        LinePreset::Colored => labeled(facts, palette),
+        LinePreset::Full => join(&full_segment_list(facts, palette), palette),
+        LinePreset::FullWeek => join(&full_week_segment_list(facts, palette), palette),
     }
 }
 
@@ -144,7 +172,8 @@ fn compact(facts: &SessionFacts) -> String {
         .join(SEPARATOR)
 }
 
-fn labeled(facts: &SessionFacts, paint: impl Fn(&str, Option<&str>) -> String) -> String {
+fn labeled(facts: &SessionFacts, palette: Palette) -> String {
+    let paint = |text, sgr| palette.paint(text, sgr);
     let dim = |text| paint(text, Some(DIM));
     let mut segment_list = Vec::new();
     if let Some(profile) = &facts.profile {
@@ -160,6 +189,63 @@ fn labeled(facts: &SessionFacts, paint: impl Fn(&str, Option<&str>) -> String) -
         segment_list.push(format!("{} {model_run}{effort_run}", dim("Model:")));
     }
     segment_list.join(&dim(SEPARATOR))
+}
+
+fn join(segment_list: &[String], palette: Palette) -> String {
+    segment_list.join(&palette.paint(SEPARATOR, Some(DIM)))
+}
+
+fn segment(label: &str, value: &str, palette: Palette) -> String {
+    format!("{} {value}", palette.paint(label, Some(DIM)))
+}
+
+fn full_segment_list(facts: &SessionFacts, palette: Palette) -> Vec<String> {
+    let mut segment_list = identity_segment_list(facts, palette);
+    segment_list.extend(spending_segment_list(facts, palette));
+    segment_list
+}
+
+fn full_week_segment_list(facts: &SessionFacts, palette: Palette) -> Vec<String> {
+    let mut segment_list = full_segment_list(facts, palette);
+    segment_list.extend(facts.week_resets_in.map(|seconds_left| {
+        let countdown = format!("in {}", countdown_text(seconds_left));
+        segment("Week resets:", &countdown, palette)
+    }));
+    segment_list
+}
+
+fn identity_segment_list(facts: &SessionFacts, palette: Palette) -> Vec<String> {
+    let mut segment_list = Vec::new();
+    if let Some(profile) = &facts.profile {
+        segment_list.push(segment("Profile:", profile, palette));
+    }
+    if let Some(model_name) = &facts.model_name {
+        let family = ModelFamily::of(facts.model_id.as_deref(), Some(model_name));
+        let model = palette.paint(model_name, family.sgr());
+        segment_list.push(segment("Model:", &model, palette));
+        if let Some(effort) = &facts.effort {
+            let effort = palette.paint(effort, Some(effort_sgr(effort)));
+            segment_list.push(segment("Effort:", &effort, palette));
+        }
+    }
+    segment_list
+}
+
+fn spending_segment_list(facts: &SessionFacts, palette: Palette) -> Vec<String> {
+    let tokens = facts
+        .transcript_path
+        .as_deref()
+        .and_then(session_tokens)
+        .map(|count| format!("~{}", token_text(count)));
+    let percent_text = |percent: Option<u64>| percent.map(|percent| format!("{percent}%"));
+    [
+        ("Tokens:", tokens),
+        ("Session:", percent_text(facts.session_percent)),
+        ("Week:", percent_text(facts.week_percent)),
+    ]
+    .into_iter()
+    .filter_map(|(label, value)| Some(segment(label, &value?, palette)))
+    .collect()
 }
 
 #[cfg(test)]

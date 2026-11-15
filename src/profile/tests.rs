@@ -1045,6 +1045,11 @@ fn line_presets_write_the_statusline_command() {
         (StatusLinePreset::Compact, "claude-shim statusline compact"),
         (StatusLinePreset::Labeled, "claude-shim statusline labeled"),
         (StatusLinePreset::Colored, "claude-shim statusline colored"),
+        (StatusLinePreset::Full, "claude-shim statusline full"),
+        (
+            StatusLinePreset::FullWeek,
+            "claude-shim statusline full-week",
+        ),
     ] {
         let dir = TempDir::new().unwrap();
         let path = dir.path().join("settings.json");

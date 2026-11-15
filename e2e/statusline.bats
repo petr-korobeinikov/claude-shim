@@ -82,3 +82,77 @@ EVERY_SEGMENT='{"model":{"id":"claude-opus-5-5","display_name":"Opus 5.5"},"effo
     [ "$output" = "$labeled" ]
     [[ "$output" != *$'\e'* ]]
 }
+
+CALL_OF_66900='{"type":"assistant","message":{"id":"msg_1","usage":{"input_tokens":900,"cache_creation_input_tokens":60000,"cache_read_input_tokens":500000,"output_tokens":6000}}}'
+
+full_input() {
+    local transcript_path="$1" rate_limits="$2"
+    printf '{"model":{"id":"claude-opus-5-5","display_name":"Opus 5.5"},"effort":{"level":"high"},"transcript_path":"%s","rate_limits":%s}' \
+        "$transcript_path" "$rate_limits"
+}
+
+write_transcript() {
+    TRANSCRIPT="$BATS_TEST_TMPDIR/session.jsonl"
+    printf '%s\n%s\n' "$CALL_OF_66900" "$CALL_OF_66900" > "$TRANSCRIPT"
+}
+
+@test "statusline full prints every segment" {
+    export CLAUDE_CONFIG_DIR="$WORK_DIR"
+    write_transcript
+    local rate_limits='{"five_hour":{"used_percentage":23.5},"seven_day":{"used_percentage":41.2}}'
+
+    NO_COLOR=1 run "$CLAUDE_SHIM_BIN" statusline full <<<"$(full_input "$TRANSCRIPT" "$rate_limits")"
+    [ "$status" -eq 0 ]
+    [ "$output" = "Profile: work · Model: Opus 5.5 · Effort: high · Tokens: ~66.9k · Session: 24% · Week: 41%" ]
+}
+
+@test "statusline full with the weekly window only holds no session" {
+    write_transcript
+
+    NO_COLOR=1 run "$CLAUDE_SHIM_BIN" statusline full \
+        <<<"$(full_input "$TRANSCRIPT" '{"seven_day":{"used_percentage":41}}')"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *" · Week: 41%" ]]
+    [[ "$output" != *"Session:"* ]]
+}
+
+@test "statusline full without a transcript holds no tokens" {
+    NO_COLOR=1 run "$CLAUDE_SHIM_BIN" statusline full \
+        <<<"$(full_input "$BATS_TEST_TMPDIR/gone.jsonl" '{}')"
+    [ "$status" -eq 0 ]
+    [ "$output" = "Model: Opus 5.5 · Effort: high" ]
+}
+
+# 30 s past 2d 5h: the countdown still floors to `2d 5h` if the binary
+# reads the clock up to 30 s after `date +%s`.
+@test "statusline full-week counts down to the weekly reset" {
+    local resets_at=$(( $(date +%s) + 2 * 86400 + 5 * 3600 + 30 ))
+
+    NO_COLOR=1 run "$CLAUDE_SHIM_BIN" statusline full-week \
+        <<<"$(full_input "$BATS_TEST_TMPDIR/gone.jsonl" "{\"seven_day\":{\"used_percentage\":41,\"resets_at\":$resets_at}}")"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *" · Week resets: in 2d 5h" ]]
+}
+
+@test "statusline full-week after the reset holds no countdown" {
+    local resets_at=$(( $(date +%s) - 1 ))
+
+    NO_COLOR=1 run "$CLAUDE_SHIM_BIN" statusline full-week \
+        <<<"$(full_input "$BATS_TEST_TMPDIR/gone.jsonl" "{\"seven_day\":{\"used_percentage\":41,\"resets_at\":$resets_at}}")"
+    [ "$status" -eq 0 ]
+    [ "$output" = "Model: Opus 5.5 · Effort: high · Week: 41%" ]
+}
+
+@test "statusline full under NO_COLOR holds no escape" {
+    export CLAUDE_CONFIG_DIR="$WORK_DIR"
+    write_transcript
+    local input
+    input="$(full_input "$TRANSCRIPT" '{"seven_day":{"used_percentage":41}}')"
+
+    run "$CLAUDE_SHIM_BIN" statusline full <<<"$input"
+    [[ "$output" == *$'\e[2m'* ]]
+
+    NO_COLOR=1 run "$CLAUDE_SHIM_BIN" statusline full <<<"$input"
+    [ "$status" -eq 0 ]
+    [[ "$output" != *$'\e'* ]]
+}

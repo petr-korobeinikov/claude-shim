@@ -82,6 +82,10 @@ pub(crate) enum StatusLinePreset {
     Labeled,
     /// Run `claude-shim statusline colored`.
     Colored,
+    /// Run `claude-shim statusline full`.
+    Full,
+    /// Run `claude-shim statusline full-week`.
+    FullWeek,
 }
 
 pub(crate) enum StatuslineError {
@@ -102,6 +106,8 @@ const PROFILE_INDICATOR_COMMAND: &str = "p=$(claude-shim profile current 2>/dev/
 const COMPACT_COMMAND: &str = "claude-shim statusline compact";
 const LABELED_COMMAND: &str = "claude-shim statusline labeled";
 const COLORED_COMMAND: &str = "claude-shim statusline colored";
+const FULL_COMMAND: &str = "claude-shim statusline full";
+const FULL_WEEK_COMMAND: &str = "claude-shim statusline full-week";
 
 impl StatusLinePreset {
     fn command(self) -> &'static str {
@@ -110,6 +116,8 @@ impl StatusLinePreset {
             StatusLinePreset::Compact => COMPACT_COMMAND,
             StatusLinePreset::Labeled => LABELED_COMMAND,
             StatusLinePreset::Colored => COLORED_COMMAND,
+            StatusLinePreset::Full => FULL_COMMAND,
+            StatusLinePreset::FullWeek => FULL_WEEK_COMMAND,
         }
     }
 }

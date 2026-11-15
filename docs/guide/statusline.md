@@ -16,8 +16,10 @@ which marks your terminal prompt.
 | `compact` | `work · Opus 5.5 · high` |
 | `labeled` | `Profile: work · Model: Opus 5.5 (high)` |
 | `colored` | the `labeled` line, colored by cost |
+| `full` | `Profile: work · Model: Opus 5.5 · Effort: high · Tokens: ~66.9k · Session: 24% · Week: 41%` |
+| `full-week` | the `full` line, then `· Week resets: in 2d 5h` |
 
-`compact`, `labeled` and `colored` take the model and the effort
+`compact`, `labeled`, `colored`, `full` and `full-week` take the model and the effort
 from the JSON Claude Code passes the command on stdin —
 `model.display_name` and `effort.level` —
 and leave out a segment that has no data:
@@ -27,10 +29,39 @@ read from `CLAUDE_CONFIG_DIR`;
 when that is not a profile directory of the shim,
 it is the profile active in the current directory.
 
+### Tokens and limits
+
+`full` and `full-week` also show what the session has spent:
+
+| Segment | Source |
+| --- | --- |
+| `Tokens: ~66.9k` | the transcript at `transcript_path` |
+| `Session: 24%` | `rate_limits.five_hour.used_percentage`, rounded |
+| `Week: 41%` | `rate_limits.seven_day.used_percentage`, rounded |
+| `Week resets: in 2d 5h` | `rate_limits.seven_day.resets_at` minus now |
+
+The token count is approximate:
+it sums each API call's input, cache writes and output once,
+and leaves cache reads out —
+every call re-reads the whole context,
+so with them a 70k session would read over a million.
+It counts the transcript of the session itself, not its subagents',
+and `/clear` starts a new transcript,
+so the count starts over.
+Without a transcript the segment is left out.
+
+[Claude Code passes](https://code.claude.com/docs/en/statusline) `rate_limits` to Claude.ai subscribers only,
+after the session's first response;
+without it, or without one of its windows,
+that segment is left out rather than printed as `0%`.
+The countdown reads `<d>d <h>h`, `<h>h <m>m` or `<m>m`,
+and is left out once the reset has passed.
+
 ### Colors
 
-`colored` paints the model and the effort louder the more they cost;
-labels, ` · ` and parentheses are dim.
+`colored`, `full` and `full-week` paint the model and the effort louder the more they cost;
+labels, ` · ` and parentheses are dim,
+and the tokens, limits and countdown plain.
 
 | Model | Color | Effort | Color |
 | --- | --- | --- | --- |
@@ -41,7 +72,8 @@ labels, ` · ` and parentheses are dim.
 
 The model's family is looked up in `model.id` first, then in `model.display_name`.
 With [`NO_COLOR`](https://no-color.org) set and non-empty,
-`colored` prints the `labeled` line.
+`colored` prints the `labeled` line,
+and `full` and `full-week` print their lines without color.
 
 ## Enable it on a new profile
 
@@ -82,7 +114,7 @@ so profiles can run different presets.
 
 The preset writes a command,
 which Claude Code runs on every status bar refresh:
-`compact`, `labeled` and `colored` write `claude-shim statusline <preset>`,
+`compact`, `labeled`, `colored`, `full` and `full-week` write `claude-shim statusline <preset>`,
 which reads Claude Code's JSON on stdin, prints one line and exits 0;
 `profile-indicator` writes a shell snippet calling `claude-shim profile current`.
 Either way `claude-shim` must be on the `PATH` of the shell Claude Code runs it in,

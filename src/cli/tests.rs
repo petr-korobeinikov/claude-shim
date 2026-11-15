@@ -422,6 +422,17 @@ fn parses_statusline_colored() {
 }
 
 #[test]
+fn parses_statusline_full_week() {
+    let cli = Cli::try_parse_from(["claude-shim", "statusline", "full-week"]).unwrap();
+    assert!(matches!(
+        cli.command,
+        Command::Statusline {
+            preset: crate::statusline::LinePreset::FullWeek
+        }
+    ));
+}
+
+#[test]
 fn rejects_statusline_fancy_as_an_invalid_value() {
     let error = Cli::try_parse_from(["claude-shim", "statusline", "fancy"])
         .err()

@@ -2,10 +2,11 @@ use std::env;
 use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use directories::BaseDirs;
 
-use super::{LinePreset, SessionFacts, render, session_profile};
+use super::{LinePreset, Palette, SessionFacts, render, session_profile};
 use crate::profile::active_profile;
 
 // Always exit 0, a failed write included: Claude Code blanks the line on a
@@ -13,12 +14,13 @@ use crate::profile::active_profile;
 pub(crate) fn print_line(preset: LinePreset) -> ExitCode {
     let stdin = io::read_to_string(io::stdin()).unwrap_or_default();
     let no_color = env::var_os("NO_COLOR").is_some_and(|value| !value.is_empty());
-    let facts = SessionFacts::from_stdin(&stdin, profile());
-    let _ = writeln!(
-        io::stdout(),
-        "{}",
-        render(preset.effective(no_color), &facts)
-    );
+    let palette = if no_color {
+        Palette::Plain
+    } else {
+        Palette::Sgr
+    };
+    let facts = SessionFacts::from_stdin(&stdin, profile(), now());
+    let _ = writeln!(io::stdout(), "{}", render(preset, &facts, palette));
     ExitCode::SUCCESS
 }
 
@@ -33,4 +35,10 @@ fn profile() -> Option<String> {
         let cwd = env::current_dir().ok()?;
         active_profile(&cwd, base_dirs.home_dir(), base_dirs.config_dir())
     })
+}
+
+fn now() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since_epoch| since_epoch.as_secs())
 }

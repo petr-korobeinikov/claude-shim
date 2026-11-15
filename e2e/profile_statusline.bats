@@ -27,6 +27,16 @@ teardown() { _common_teardown; }
     grep -q '"command": "claude-shim statusline colored"' "$dir/settings.json"
 }
 
+@test "statusline --preset full-week installs the shim's full-week line" {
+    run "$CLAUDE_SHIM_BIN" profile new p
+    local dir
+    dir="$(path_after_at "${lines[0]}")"
+
+    run "$CLAUDE_SHIM_BIN" profile statusline --profile p --preset full-week
+    [ "$status" -eq 0 ]
+    grep -q '"command": "claude-shim statusline full-week"' "$dir/settings.json"
+}
+
 @test "statusline installs a custom command" {
     run "$CLAUDE_SHIM_BIN" profile new p
     local dir

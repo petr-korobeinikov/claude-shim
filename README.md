@@ -42,7 +42,8 @@ so the right config is always active and always visible.
   shows the active profile right in your shell prompt.
 - **statusLine indicator** —
   shows the profile, model and effort in Claude Code's in-session status bar,
-  colored by cost if you like.
+  colored by cost if you like,
+  with the session's tokens and the plan's limits.
 
 ## Installation
 
