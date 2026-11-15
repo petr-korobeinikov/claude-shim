@@ -1,0 +1,55 @@
+#!/bin/sh
+#MISE description="Cut the next release into a tagged commit on main; with --beta, its next beta. Pushes nothing"
+set -eu
+
+case "$*" in
+    '') beta=false ;;
+    --beta) beta=true ;;
+    *) echo "release: unknown argument: $*" >&2; exit 2 ;;
+esac
+
+# Resolved before the cd below, which would break a relative $0.
+tasks_dir=$(cd "$(dirname "$0")" && pwd)
+cd "$(git rev-parse --show-toplevel)"
+
+refuse() {
+    echo "release: $*" >&2
+    exit 1
+}
+
+git fetch -q --tags origin
+
+[ "$(git branch --show-current)" = develop ] || refuse "not on develop"
+[ -z "$(git status --porcelain)" ] || refuse "the tree has changes"
+open=$(git for-each-ref --count=1 --format='%(refname:strip=2)' refs/heads/release)
+[ -z "$open" ] || refuse "$open is open"
+# Only behind refuses: develop may carry commits the operator has not pushed yet.
+for branch in develop main; do
+    [ "$(git rev-list --count "$branch..origin/$branch")" -eq 0 ] ||
+        refuse "$branch lacks commits of origin/$branch"
+done
+
+# [package] comes first in Cargo.toml, so the first version line is the package's; checked, not trusted.
+line=$(grep -n -m 1 '^version = ' Cargo.toml | cut -d: -f1)
+[ "$(head -n "$line" Cargo.toml | grep '^\[' | tail -n 1)" = '[package]' ] ||
+    refuse "Cargo.toml: the first version line is outside [package]"
+
+name=$("$tasks_dir/version/next" "$@")
+git flow release start "$name"
+
+# BSD and GNU sed agree only on a suffix attached to -i.
+sed -i.orig "${line}s/.*/version = \"$name\"/" Cargo.toml
+rm Cargo.toml.orig
+# The install guide serves the latest final release.
+if [ "$beta" = false ]; then
+    sed -i.orig "s/^ver=.*/ver=$name/" docs/guide/installation.md
+    rm docs/guide/installation.md.orig
+fi
+cargo update --workspace --offline --quiet
+git add Cargo.toml Cargo.lock docs/guide/installation.md
+git commit -q -m "chore: release $name"
+
+git flow release finish -m "v$name" "$name"
+git checkout -q develop
+echo "release: v$name is cut and nothing is pushed; publish it with:"
+echo "git push origin develop main v$name"

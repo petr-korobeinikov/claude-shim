@@ -29,6 +29,34 @@ git flow feature finish <id> --squash-message "<subject>"
 
 Releases and hotfixes merge and tag `v<version>`.
 
+## Releases
+
+A release is named `YYYY.M.MICRO`,
+MICRO counting this month's releases from 0;
+a beta appends `-beta.N`.
+`mise run version:next` prints the next name and changes nothing:
+
+```sh
+mise run version:next          # 2026.11.1
+mise run version:next --beta   # 2026.11.1-beta.1
+```
+
+`mise run release` cuts it, from a clean `develop` that is not behind `origin`:
+it starts `release/<name>`,
+commits the version into `Cargo.toml`, `Cargo.lock`
+and `docs/guide/installation.md`,
+finishes the branch into `main` with tag `v<name>`,
+and merges `main` back into `develop`.
+`--beta` cuts the next beta instead
+and leaves the install guide on the latest final release.
+Nothing is pushed:
+the task ends by printing the command that publishes the release,
+since the tag starts `release.yml` and its publish to crates.io cannot be undone:
+
+```sh
+mise run release   # ends with: git push origin develop main v2026.11.1
+```
+
 ## Pre-commit hooks
 
 `mise install` also brings in `prek`

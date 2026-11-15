@@ -1,0 +1,35 @@
+#!/bin/sh
+#MISE description="Print the next release name; with --beta, its next beta"
+set -eu
+
+case "$*" in
+    '') beta=false ;;
+    --beta) beta=true ;;
+    *) echo "version:next: unknown argument: $*" >&2; exit 2 ;;
+esac
+
+cd "$(git rev-parse --show-toplevel)"
+
+next_number() {
+    highest=$(grep -E "$1" | sed 's/.*\.//' | sort -n | tail -n 1)
+    if [ -n "$highest" ]; then echo $((highest + 1)); else echo "$2"; fi
+}
+
+# One call to date, so the year and the month cannot straddle New Year's midnight.
+now=$(date -u +%Y.%-m)
+year=${now%.*}
+month=${now#*.}
+
+# An open release or hotfix branch holds its number before it is tagged.
+micro=$(git for-each-ref --format='%(refname)' refs/tags refs/heads/release refs/heads/hotfix |
+    sed -n 's#^refs/tags/v##p; s#^refs/heads/release/##p; s#^refs/heads/hotfix/##p' |
+    next_number "^$year\.$month\.(0|[1-9][0-9]*)\$" 0)
+name=$year.$month.$micro
+
+if [ "$beta" = false ]; then
+    echo "$name"
+    exit 0
+fi
+beta_number=$(git for-each-ref --format='%(refname:strip=2)' refs/tags |
+    next_number "^v$year\.$month\.$micro-beta\.[1-9][0-9]*\$" 1)
+echo "$name-beta.$beta_number"
